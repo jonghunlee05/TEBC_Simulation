@@ -9,7 +9,7 @@ from mace.calculators import mace_mp
 
 
 MODEL_NAME = "MACE-MP-0"
-MODEL_VARIANT = "small"
+MODEL_VARIANT = "medium"
 DEVICE = "cpu"
 DTYPE = "float64"
 FMAX_TARGET = 0.01
@@ -93,6 +93,8 @@ COMPOSITIONS = [
     ("beta-Y2Si2O7",  "Y2Si2O7.cif"),
     ("beta-Yb2Si2O7", "Yb2Si2O7.cif"),
     ("beta-Lu2Si2O7", "Lu2Si2O7.cif"),
+    ("beta-Er2Si2O7", "Er2Si2O7.cif"),
+    ("beta-Sc2Si2O7", "Sc2Si2O7.cif"),
 ]
 
 
@@ -106,7 +108,7 @@ def main():
 
     out_dir = Path("results")
     out_dir.mkdir(exist_ok=True)
-    out_path = out_dir / "relaxation_results.json"
+    out_path = out_dir / f"relaxation_results_{MODEL_VARIANT}.json"
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nResults written to {out_path}")
