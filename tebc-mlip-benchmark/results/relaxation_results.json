@@ -1,0 +1,146 @@
+[
+  {
+    "label": "beta-Y2Si2O7",
+    "cif_source": "Y2Si2O7.cif",
+    "composition": "O14Si4Y4",
+    "n_atoms": 22,
+    "model": {
+      "name": "MACE-MP-0",
+      "variant": "small",
+      "dtype": "float64",
+      "device": "cpu"
+    },
+    "reference_origin": "Materials Project DFT-PBE (CIF input)",
+    "lattice": {
+      "dft_pbe": {
+        "a": 6.87571659,
+        "b": 8.99270118,
+        "c": 4.73603621,
+        "beta": 101.82713807
+      },
+      "mace_relaxed": {
+        "a": 6.936808678592299,
+        "b": 9.108238882331994,
+        "c": 4.780875677181527,
+        "beta": 101.98610324798572
+      },
+      "deviation_pct": {
+        "a": 0.8885195861788597,
+        "b": 1.2847941905259108,
+        "c": 0.9467720514224462,
+        "beta": 0.15611278191521172
+      }
+    },
+    "energy_eV": {
+      "initial": -187.68342790164877,
+      "relaxed": -187.82494377412132,
+      "delta": -0.14151587247255293
+    },
+    "energy_per_atom_eV": {
+      "initial": -8.531064904620399,
+      "relaxed": -8.537497444278243
+    },
+    "convergence": {
+      "fmax_target": 0.01,
+      "n_steps": 30,
+      "fmax_atom_final": 0.0033186533519773778,
+      "smax_final_eV_per_A3": 0.0003123722102286527
+    }
+  },
+  {
+    "label": "beta-Yb2Si2O7",
+    "cif_source": "Yb2Si2O7.cif",
+    "composition": "O14Si4Yb4",
+    "n_atoms": 22,
+    "model": {
+      "name": "MACE-MP-0",
+      "variant": "small",
+      "dtype": "float64",
+      "device": "cpu"
+    },
+    "reference_origin": "Materials Project DFT-PBE (CIF input)",
+    "lattice": {
+      "dft_pbe": {
+        "a": 6.7413059,
+        "b": 8.81026662,
+        "c": 4.7158573,
+        "beta": 102.13014279
+      },
+      "mace_relaxed": {
+        "a": 6.8264827365050955,
+        "b": 9.308495834315263,
+        "c": 4.860382081540887,
+        "beta": 101.54018820865483
+      },
+      "deviation_pct": {
+        "a": 1.263506474392374,
+        "b": 5.655098032836408,
+        "c": 3.064655530202063,
+        "beta": -0.5776498154499135
+      }
+    },
+    "energy_eV": {
+      "initial": -154.60895607455186,
+      "relaxed": -155.67958743692125,
+      "delta": -1.0706313623693973
+    },
+    "energy_per_atom_eV": {
+      "initial": -7.027679821570539,
+      "relaxed": -7.076344883496421
+    },
+    "convergence": {
+      "fmax_target": 0.01,
+      "n_steps": 50,
+      "fmax_atom_final": 0.002832973823869197,
+      "smax_final_eV_per_A3": 0.00025973995975504685
+    }
+  },
+  {
+    "label": "beta-Lu2Si2O7",
+    "cif_source": "Lu2Si2O7.cif",
+    "composition": "Lu4O14Si4",
+    "n_atoms": 22,
+    "model": {
+      "name": "MACE-MP-0",
+      "variant": "small",
+      "dtype": "float64",
+      "device": "cpu"
+    },
+    "reference_origin": "Materials Project DFT-PBE (CIF input)",
+    "lattice": {
+      "dft_pbe": {
+        "a": 6.70745634,
+        "b": 8.76254244,
+        "c": 4.712758769999999,
+        "beta": 102.19909332
+      },
+      "mace_relaxed": {
+        "a": 6.762831536464466,
+        "b": 8.872568593438181,
+        "c": 4.754904901927895,
+        "beta": 102.227863043951
+      },
+      "deviation_pct": {
+        "a": 0.8255766964033009,
+        "b": 1.25564188922982,
+        "c": 0.8942985199281899,
+        "beta": 0.028150664566973058
+      }
+    },
+    "energy_eV": {
+      "initial": -181.29790527759815,
+      "relaxed": -181.43718450903742,
+      "delta": -0.139279231439275
+    },
+    "energy_per_atom_eV": {
+      "initial": -8.240813876254462,
+      "relaxed": -8.247144750410792
+    },
+    "convergence": {
+      "fmax_target": 0.01,
+      "n_steps": 29,
+      "fmax_atom_final": 0.006210367329126054,
+      "smax_final_eV_per_A3": 0.0003919707927661141
+    }
+  }
+]
