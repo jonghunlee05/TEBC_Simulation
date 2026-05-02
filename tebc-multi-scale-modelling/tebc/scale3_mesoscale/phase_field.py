@@ -10,6 +10,7 @@ Double well:   g(φ) = φ²(1-φ)²
 """
 
 from __future__ import annotations
+
 import numpy as np
 
 try:
@@ -37,9 +38,14 @@ def interface_params(sigma: float, ell: float) -> dict:
 
 def nucleation_rate(T: float, sigma_nu: float, dG_v: float,
                      theta_contact: float = 0.0,
-                     I0: float = 1e36) -> float:
-    """Heterogeneous nucleation rate I = I₀ exp(-ΔG*/k_B T)."""
-    from tebc.constants import k_B
+                     I0: float | None = None) -> float:
+    """Heterogeneous nucleation rate I = I₀ exp(-ΔG*/k_B T).
+
+    Default I0 from `tebc.constants.NUCLEATION_PREFACTOR`.
+    """
+    from tebc.constants import NUCLEATION_PREFACTOR, k_B
+    if I0 is None:
+        I0 = NUCLEATION_PREFACTOR
     f_theta = 0.25 * (2 - 3*np.cos(theta_contact) + np.cos(theta_contact)**3)
     dG_star = (16 * np.pi * sigma_nu**3 / (3 * dG_v**2)) * f_theta
     return I0 * np.exp(-dG_star / (k_B * T))

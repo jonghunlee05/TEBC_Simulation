@@ -9,12 +9,12 @@ Parse DFT results (VASP format) and extract:
 """
 
 from __future__ import annotations
+
 import numpy as np
-from pathlib import Path
 
 try:
-    from pymatgen.io.vasp.outputs import Outcar, Vasprun
     from pymatgen.analysis.elasticity import ElasticTensor
+    from pymatgen.io.vasp.outputs import Outcar, Vasprun
 except ImportError:
     raise ImportError("pip install pymatgen")
 

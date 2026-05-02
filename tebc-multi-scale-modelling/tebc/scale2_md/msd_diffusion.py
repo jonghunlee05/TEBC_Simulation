@@ -7,8 +7,8 @@ MSD: ⟨|Δr(t)|²⟩ = (1/N) Σ_i |r_i(t) - r_i(0)|²
 
 import numpy as np
 from scipy.stats import linregress
-from tebc.constants import k_B
-from tebc.utils import arrhenius_fit, arrhenius_eval
+
+from tebc.utils import arrhenius_fit
 
 
 def compute_msd(positions: np.ndarray, species_mask: np.ndarray = None,
@@ -43,8 +43,9 @@ def msd_to_diffusivity(t_lag: np.ndarray, msd: np.ndarray,
 
 def arrhenius_diffusivity(T_list: np.ndarray, D_list: np.ndarray) -> dict:
     """Fit D(T) = D0 * exp(-Ea / k_B T)."""
-    from tebc.constants import eV
     import warnings
+
+    from tebc.constants import eV
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         A, Ea_J = arrhenius_fit(T_list, D_list)

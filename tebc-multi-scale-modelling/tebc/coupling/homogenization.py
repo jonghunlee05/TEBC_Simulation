@@ -65,6 +65,7 @@ def cahill_pohl_kappa_min(kappa_s: float, n: float,
                            T: float, theta_D: float) -> float:
     """Cahill-Pohl minimum thermal conductivity (PRB 46, 6131, 1992)."""
     from scipy.integrate import quad
+
     from tebc.constants import k_B
     prefactor = (np.pi/6)**(1/3) * k_B * n**(2/3)
     total = 0.0

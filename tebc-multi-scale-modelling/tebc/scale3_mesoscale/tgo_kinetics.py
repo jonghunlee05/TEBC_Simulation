@@ -7,8 +7,10 @@ PBR stress:   ε_TGO^ox = ⅓(PBR - 1) δ_{ij}
 """
 
 from __future__ import annotations
+
 import numpy as np
 from scipy.integrate import solve_ivp
+
 from tebc.constants import R_gas
 from tebc.utils import arrhenius_eval
 
@@ -107,9 +109,24 @@ def tgo_growth_stress(x_TGO: float, E_TGO: float, nu_TGO: float,
 def robinson_smialek_recession(T_K: float, P_H2O: float,
                                 P_tot: float, v_gas: float,
                                 Ea_J: float = 108e3,
-                                k0: float   = None) -> float:
-    """k_l ∝ v^{0.5} * P_H2O^2 * P_tot^{-0.5} * exp(-ΔQ/RT)."""
+                                k0: float | None = None) -> float:
+    """k_l ∝ v^{0.5} * P_H2O^2 * P_tot^{-0.5} * exp(-ΔQ/RT).
+
+    The default `k0` is back-solved so the correlation reproduces the
+    Robinson–Smialek calibration anchor (`tebc.constants.RS_*`).
+    """
     if k0 is None:
-        k0 = 2e-9 / (0.044**0.5 * (0.1*101325)**2 * (101325)**(-0.5)
-                      * np.exp(-Ea_J/(R_gas*1589)))
+        from tebc.constants import (
+            RS_K_L_REF,
+            RS_P_H2O_REF_PA,
+            RS_T_REF_K,
+            RS_V_GAS_REF,
+            atm_Pa,
+        )
+        k0 = RS_K_L_REF / (
+            RS_V_GAS_REF**0.5
+            * RS_P_H2O_REF_PA**2
+            * atm_Pa**(-0.5)
+            * np.exp(-Ea_J / (R_gas * RS_T_REF_K))
+        )
     return k0 * v_gas**0.5 * P_H2O**2 * P_tot**(-0.5) * np.exp(-Ea_J/(R_gas*T_K))

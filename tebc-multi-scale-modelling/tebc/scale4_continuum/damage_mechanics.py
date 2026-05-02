@@ -34,9 +34,21 @@ def mazars_equivalent_strain(eps_principal: np.ndarray) -> float:
     return np.sqrt(np.sum(positive**2))
 
 
-def mazars_damage(eps_tilde: float, eps0: float = 1e-4,
-                   A: float = 0.96, B: float = 15000.0) -> float:
-    """Mazars damage function for quasi-brittle materials."""
+def mazars_damage(eps_tilde: float, eps0: float | None = None,
+                   A: float | None = None, B: float | None = None) -> float:
+    """Mazars damage function for quasi-brittle materials.
+
+    Defaults pulled from `tebc.constants` (MAZARS_EPS0_DEFAULT,
+    MAZARS_A_TENSION, MAZARS_B_TENSION).
+    """
+    from tebc.constants import (
+        MAZARS_A_TENSION,
+        MAZARS_B_TENSION,
+        MAZARS_EPS0_DEFAULT,
+    )
+    if eps0 is None: eps0 = MAZARS_EPS0_DEFAULT
+    if A    is None: A    = MAZARS_A_TENSION
+    if B    is None: B    = MAZARS_B_TENSION
     if eps_tilde <= eps0:
         return 0.0
     D = 1.0 - (1.0-A)*eps0/eps_tilde - A*np.exp(-B*(eps_tilde - eps0))

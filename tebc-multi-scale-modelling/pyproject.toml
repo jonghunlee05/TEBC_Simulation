@@ -1,16 +1,94 @@
 [build-system]
 requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "tebc_simulation"
 version = "0.1.0"
+description = "Multi-scale simulation framework for rare-earth silicate T/EBCs on SiC/SiC CMCs — coupling DFT, MD, phase-field, and continuum FEA."
+readme = "README.md"
 requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Jonghun Lee", email = "ljh04282005@gmail.com" },
+]
+keywords = [
+    "materials-science", "multiscale-modeling", "thermal-barrier-coating",
+    "environmental-barrier-coating", "dft", "molecular-dynamics",
+    "phase-field", "fenicsx", "ceramic-matrix-composite",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
-    "numpy", "scipy", "matplotlib", "pandas",
-    "ase", "pymatgen", "phonopy", "phono3py",
-    "fipy", "pycalphad", "salib", "h5py",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "matplotlib>=3.8",
+    "pandas>=2.2",
+    "ase>=3.23",
+    "pymatgen>=2024.3",
+    "phonopy>=2.23",
+    "phono3py>=2.8",
+    "fipy>=3.4",
+    "pycalphad>=0.10",
+    "salib>=1.5",
+    "h5py>=3.10",
 ]
 
 [project.optional-dependencies]
-fea = ["fenics-dolfinx", "petsc4py", "mpi4py"]
-ml  = ["deepmd-kit", "dpgen"]
+fea = [
+    "fenics-dolfinx>=0.8",
+    "petsc4py>=3.20",
+    "mpi4py>=3.1",
+]
+ml = [
+    "deepmd-kit>=3.0",
+    "dpgen>=0.11",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+    "black>=24.0",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+
+[project.urls]
+Repository = "https://github.com/jonghunlee05/TEBC_Simulation"
+Issues     = "https://github.com/jonghunlee05/TEBC_Simulation/issues"
+
+[tool.setuptools.packages.find]
+include = ["tebc*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "NPY"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "E741",   # ambiguous variable name (we use l, I etc. for physics)
+    "E731",   # lambda assignment (used for short fit functions)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "F401"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

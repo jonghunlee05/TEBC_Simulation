@@ -6,10 +6,11 @@ Loss:  L = (p_e/N)|ΔE|² + (p_f/3N)Σ|ΔF_i|² + (p_v/9N)|ΔΞ|²
 """
 
 from __future__ import annotations
+
 import json
 import subprocess
+
 import numpy as np
-from pathlib import Path
 
 
 def build_deepmd_input(

@@ -6,10 +6,12 @@ Runs the full 4-scale TEBC simulation in sequence:
 """
 
 from __future__ import annotations
+
 import logging
-import numpy as np
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import numpy as np
 
 logger = logging.getLogger("tebc")
 
@@ -87,8 +89,7 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
     # ── SCALE 1 ──
     if cfg.run_scale1 and Path(cfg.dft_outcar).exists():
         logger.info("Scale 1: Parsing DFT outputs...")
-        from tebc.scale1_atomistic.dft_interface import (
-            parse_elastic_tensor, parse_structure_energy)
+        from tebc.scale1_atomistic.dft_interface import parse_elastic_tensor, parse_structure_energy
         params.C_ijkl = parse_elastic_tensor(cfg.dft_outcar)
         struct = parse_structure_energy(cfg.dft_outcar.replace("OUTCAR","vasprun.xml"))
         params.E0 = struct["E0_per_atom"]
@@ -112,9 +113,10 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
         mat = MATERIALS[cfg.material_EBC]
         T_service = (cfg.T_hot + cfg.T_cold) / 2.0
         if cfg.material_TBC == "7YSZ":
+            from tebc.constants import k_B
             ysz = MATERIALS["7YSZ"]
             params.D_O = (ysz["D0_O"]
-                          * np.exp(-ysz["Ea_DO"]/(1.380649e-23 * T_service)))
+                          * np.exp(-ysz["Ea_DO"]/(k_B * T_service)))
         params.alpha_T  = mat["alpha"]
         params.kappa_T  = np.eye(3) * mat["kappa"]
         params.C_ij_T   = params.C_ijkl * (1 - 0.15*(T_service-300)/1300)
@@ -124,7 +126,10 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
     if cfg.run_scale3:
         logger.info("Scale 3: TGO kinetics + phase-field...")
         from tebc.scale3_mesoscale.tgo_kinetics import (
-            solve_paralinear, robinson_smialek_recession, parabolic_rate_constant)
+            parabolic_rate_constant,
+            robinson_smialek_recession,
+            solve_paralinear,
+        )
         mat = MATERIALS[cfg.material_bond]
         T_service = cfg.T_hot
         k_p = parabolic_rate_constant(T_service, mat["k_p_wet"], mat["Ea_kp_wet"])
@@ -146,7 +151,9 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
     if cfg.run_scale4:
         logger.info("Scale 4: Continuum thermoelastic analysis...")
         from tebc.scale4_continuum.thermoelastic import (
-            bilayer_mismatch_stress, energy_release_rate_steady_state)
+            bilayer_mismatch_stress,
+            energy_release_rate_steady_state,
+        )
         dT = cfg.T_cold - cfg.T_dep
         mat_EBC = MATERIALS[cfg.material_EBC]
         mat_sub = MATERIALS[cfg.material_sub]
@@ -183,7 +190,7 @@ if __name__ == "__main__":
         run_sensitivity=True,
     )
     result = run_pipeline(cfg)
-    print(f"\n=== TEBC Simulation Complete ===")
+    print("\n=== TEBC Simulation Complete ===")
     print(f"Failure index:  {result.fail_index:.4f}  ({'FAIL' if result.fail_index > 1 else 'PASS'})")
     print(f"TGO thickness:  {result.x_TGO*1e6:.2f} μm")
     print(f"EBC recession:  {result.recession*1e6:.2f} μm")

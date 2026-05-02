@@ -31,7 +31,8 @@
     "k_p_m2s_1316C":  2.22e-18,
     "Ea_kp_Jmol":     108000,
     "k_l_ms_1316C":   1.5e-11,
-    "Ea_kl_Jmol":     108000
+    "Ea_kl_Jmol":     108000,
+    "sources": ["Sun JECS 2008", "Tian JACerS 2016", "Felsche StructBond 1973"]
   },
   "7YSZ": {
     "rho_kg_m3":      6050,
@@ -58,7 +59,8 @@
     "k_p_dry_m2s_1473K": 1.11e-17,
     "Ea_kp_dry_Jmol":    119000,
     "k_p_wet_m2s_1589K": 1.11e-16,
-    "Ea_kp_wet_Jmol":    68000
+    "Ea_kp_wet_Jmol":    68000,
+    "sources": ["Deal & Grove JAP 1965", "Opila & Hann JACerS 1997", "Robinson & Smialek JACerS 1999"]
   },
   "SiC_SiC_CMC": {
     "rho_kg_m3":      2800,
@@ -67,7 +69,8 @@
     "alpha_K":        4.8e-6,
     "kappa_Wm1K1":    15.0,
     "cp_Jkg1K1":      750,
-    "UTS_Pa":         400e6
+    "UTS_Pa":         400e6,
+    "sources": ["Naslain CompSciTech 2004", "DiCarlo Ceram Eng Sci Proc 2005", "Bhatt JACerS 2018"]
   },
   "SiO2_TGO": {
     "rho_kg_m3":      2200,
@@ -76,6 +79,7 @@
     "alpha_K":        0.55e-6,
     "kappa_Wm1K1":    1.4,
     "cp_Jkg1K1":      740,
-    "PBR":            2.15
+    "PBR":            2.15,
+    "sources": ["Pilling & Bedworth JIM 1923", "Doremus JAP 1995", "Eldridge JECS 2002"]
   }
 }

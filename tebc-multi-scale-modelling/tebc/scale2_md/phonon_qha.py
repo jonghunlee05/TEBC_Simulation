@@ -7,9 +7,11 @@ QHA Helmholtz free energy:
 """
 
 from __future__ import annotations
+
 import numpy as np
-from tebc.constants import k_B, hbar
-from tebc.utils import birch_murnaghan_energy, fit_eos, mode_heat_capacity
+
+from tebc.constants import hbar, k_B
+from tebc.utils import fit_eos, mode_heat_capacity
 
 
 def compute_free_energy(omega_qpts: np.ndarray, weights: np.ndarray,

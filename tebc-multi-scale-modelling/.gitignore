@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environments
+.venv/
+venv/
+env/
+.env
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Project outputs
+results/*.csv
+results/*.h5
+results/*.png
+!results/.gitkeep
+
+# Scientific code artifacts
+*.out
+*.log
+*.pb              # TensorFlow frozen graphs (DeePMD)
+graph*.pb*
+lcurve.out
+model.ckpt*
+OUTCAR
+vasprun.xml
+WAVECAR
+CHGCAR

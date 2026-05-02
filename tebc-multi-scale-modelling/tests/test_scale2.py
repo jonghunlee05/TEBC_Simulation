@@ -2,10 +2,11 @@
 
 import numpy as np
 import pytest
+
+from tebc.constants import hbar, k_B
 from tebc.scale2_md.green_kubo import compute_hcacf, integrate_hcacf, plateau_estimate
-from tebc.scale2_md.phonon_qha import compute_free_energy, gruneisen_cte_relation
 from tebc.scale2_md.msd_diffusion import msd_to_diffusivity
-from tebc.constants import k_B, hbar
+from tebc.scale2_md.phonon_qha import compute_free_energy, gruneisen_cte_relation
 
 
 def test_hcacf_delta():
@@ -122,7 +123,7 @@ class TestScale4:
 
 class TestCoupling:
     def test_voigt_reuss_bounds(self):
-        from tebc.coupling.homogenization import voigt_average, reuss_average, hill_average
+        from tebc.coupling.homogenization import hill_average, reuss_average, voigt_average
         C1 = np.eye(6) * 200e9; C1[3,3]=C1[4,4]=C1[5,5]=80e9
         C2 = np.eye(6) *  50e9; C2[3,3]=C2[4,4]=C2[5,5]=20e9
         f  = [0.7, 0.3]

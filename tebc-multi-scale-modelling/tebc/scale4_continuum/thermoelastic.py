@@ -8,7 +8,6 @@ CTE mismatch stress (bilayer): σ_f = E_f/(1-ν_f) * (α_s - α_f) * ΔT
 """
 
 from __future__ import annotations
-import numpy as np
 
 
 def bilayer_mismatch_stress(E_f: float, nu_f: float,

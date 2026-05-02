@@ -7,11 +7,12 @@ Gibbs energy model (Redlich-Kister):
 """
 
 from __future__ import annotations
+
 import numpy as np
 
 try:
     import pycalphad.variables as v
-    from pycalphad import Database, equilibrium, calculate
+    from pycalphad import Database, calculate, equilibrium
 except ImportError:
     raise ImportError("pip install pycalphad")
 

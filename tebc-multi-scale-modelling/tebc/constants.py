@@ -12,6 +12,22 @@ eV    = 1.602176634e-19 # J    electron-volt
 N_A   = 6.02214076e23  # mol⁻¹ Avogadro
 R_gas = 8.314462       # J/(mol·K)
 sigma_SB = 5.670374419e-8  # W/(m²·K⁴) Stefan-Boltzmann
+atm_Pa   = 101325.0    # Pa     standard atmosphere
+
+# ── Mazars damage model defaults (IJNME 1984) ────────────────────────────────
+MAZARS_EPS0_DEFAULT = 1.0e-4   # damage threshold strain
+MAZARS_A_TENSION    = 0.96     # A coefficient, tension
+MAZARS_B_TENSION    = 15000.0  # B coefficient, tension
+
+# ── Phase-field nucleation defaults ──────────────────────────────────────────
+NUCLEATION_PREFACTOR = 1.0e36  # I0 [s⁻¹·m⁻³] heterogeneous CNT prefactor
+
+# ── Robinson–Smialek SiO2 recession calibration anchors ──────────────────────
+# (Opila & Hann 1997; Robinson & Smialek 1999)
+RS_T_REF_K       = 1589.0          # K
+RS_P_H2O_REF_PA  = 0.1 * atm_Pa    # 0.1 atm partial pressure
+RS_V_GAS_REF     = 0.044           # m/s reference gas velocity
+RS_K_L_REF       = 2.0e-9          # m/s recession at the reference state
 
 # ── Material database (RT unless stated) ─────────────────────────────────────
 MATERIALS = {

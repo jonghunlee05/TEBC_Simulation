@@ -11,11 +11,15 @@ Morris elementary effects:
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
+from tebc.coupling.homogenization import maxwell_eucken_kappa
+
 try:
-    from SALib.analyze import sobol, morris as morris_analyze
+    from SALib.analyze import morris as morris_analyze
+    from SALib.analyze import sobol
     from SALib.sample import morris as morris_sample
     # SALib ≥ 1.5: `sobol` sampler replaces deprecated `saltelli`.
     try:
@@ -50,16 +54,18 @@ DEFAULT_TEBC_PROBLEM = {
 }
 
 
-def run_sobol(model_func, problem: dict = None,
+def run_sobol(model_func, problem: dict | None = None,
               N: int = 1024,
-              calc_second_order: bool = True) -> pd.DataFrame:
-    """Saltelli-sampled Sobol analysis."""
+              calc_second_order: bool = True,
+              seed: int = 42) -> pd.DataFrame:
+    """Saltelli-sampled Sobol analysis. `seed` makes sampling reproducible."""
     if problem is None:
         problem = DEFAULT_TEBC_PROBLEM
-    X = sobol_sample.sample(problem, N, calc_second_order=calc_second_order)
+    X = sobol_sample.sample(problem, N, calc_second_order=calc_second_order,
+                            seed=seed)
     Y = model_func(X)
     Si = sobol.analyze(problem, Y, calc_second_order=calc_second_order,
-                        print_to_console=False)
+                        print_to_console=False, seed=seed)
     df = pd.DataFrame({
         "parameter": problem["names"],
         "S1":        Si["S1"],
@@ -71,16 +77,19 @@ def run_sobol(model_func, problem: dict = None,
     return df
 
 
-def run_morris(model_func, problem: dict = None,
+def run_morris(model_func, problem: dict | None = None,
                n_trajectories: int = 50,
-               num_levels: int = 4) -> pd.DataFrame:
-    """Morris elementary effects screening."""
+               num_levels: int = 4,
+               seed: int = 42) -> pd.DataFrame:
+    """Morris elementary effects screening. `seed` makes sampling reproducible."""
     if problem is None:
         problem = DEFAULT_TEBC_PROBLEM
     X = morris_sample.sample(problem, N=n_trajectories,
-                              num_levels=num_levels, optimal_trajectories=10)
+                              num_levels=num_levels, optimal_trajectories=10,
+                              seed=seed)
     Y = model_func(X)
-    Si = morris_analyze.analyze(problem, X, Y, print_to_console=False)
+    Si = morris_analyze.analyze(problem, X, Y, print_to_console=False,
+                                seed=seed)
     df = pd.DataFrame({
         "parameter": problem["names"],
         "mu_star":   Si["mu_star"],
@@ -117,15 +126,12 @@ def tebc_failure_model(X: np.ndarray,
     sigma_TGO = (E_TGO/(1-nu_TGO)) * 0.31
     G_TGO  = (1-nu_TGO**2)*sigma_TGO**2 * x_TGO / (2*E_TGO)
     recession_frac = k_l * t_tot / h_layer
-    kappa_eff = maxwell_eucken_kappa_simple(kappa_TBC, 0.0, porosity)
+    # κ_eff is computed for completeness / future use in extended surrogates;
+    # the current failure-index expression is dominated by G_drive, G_TGO,
+    # Γ_int and recession_frac, so kappa_TBC enters only through subsequent
+    # extensions. Keep the call so vectorised inputs validate cleanly.
+    _kappa_eff = maxwell_eucken_kappa(kappa_TBC, 0.0, porosity)
 
     fail_idx = ((G_drive + G_TGO) / (Gamma_int + 1e-30)
                 + 2.0 * recession_frac)
     return fail_idx
-
-
-def maxwell_eucken_kappa_simple(ks, kp, phi):
-    """Inline Maxwell-Eucken for sensitivity model."""
-    num = 2*ks + kp - 2*phi*(ks - kp)
-    den = 2*ks + kp +   phi*(ks - kp)
-    return ks * num / (den + 1e-30)

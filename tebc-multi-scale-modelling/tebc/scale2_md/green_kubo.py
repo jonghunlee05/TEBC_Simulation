@@ -5,8 +5,10 @@ Green-Kubo thermal conductivity from MD trajectory.
 """
 
 from __future__ import annotations
+
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
+
 from tebc.constants import k_B
 
 

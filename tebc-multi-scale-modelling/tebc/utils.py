@@ -4,8 +4,8 @@ Shared mathematical utilities used across all scales.
 
 import numpy as np
 from scipy.optimize import curve_fit
-from tebc.constants import R_gas, k_B
 
+from tebc.constants import R_gas, k_B
 
 # ── Voigt notation helpers ────────────────────────────────────────────────────
 VOIGT_MAP = {(0,0):0,(1,1):1,(2,2):2,(1,2):3,(0,2):4,(0,1):5}
