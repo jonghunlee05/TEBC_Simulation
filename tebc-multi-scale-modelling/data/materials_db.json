@@ -1,0 +1,81 @@
+{
+  "_comment": "All SI units unless noted. Sources cited inline.",
+  "beta_Yb2Si2O7": {
+    "rho_kg_m3":      6180,
+    "E_Pa":           185e9,
+    "nu":             0.275,
+    "alpha_K":        4.05e-6,
+    "alpha_aniso_K":  [3.57e-6, 2.49e-6, 1.48e-6],
+    "kappa_Wm1K1":    2.5,
+    "cp_Jkg1K1":      450,
+    "KIC_Pa_m05":     1.75e6,
+    "Gamma_int_Jm2":  30,
+    "T_melt_K":       2123,
+    "k_p_m2s_1316C":  2.78e-18,
+    "Ea_kp_Jmol":     101000,
+    "k_l_ms_1316C":   2.78e-11,
+    "Ea_kl_Jmol":     108000,
+    "sources": ["Tian 2013 ActaMat", "Zhou JACerS 2013", "Zhao JECS 2020"]
+  },
+  "beta_Y2Si2O7": {
+    "rho_kg_m3":      4040,
+    "E_Pa":           165e9,
+    "nu":             0.27,
+    "alpha_K":        4.0e-6,
+    "alpha_aniso_K":  [3.5e-6, 2.4e-6, 2.1e-6],
+    "kappa_Wm1K1":    3.0,
+    "cp_Jkg1K1":      460,
+    "KIC_Pa_m05":     2.0e6,
+    "Gamma_int_Jm2":  35,
+    "T_melt_K":       2048,
+    "k_p_m2s_1316C":  2.22e-18,
+    "Ea_kp_Jmol":     108000,
+    "k_l_ms_1316C":   1.5e-11,
+    "Ea_kl_Jmol":     108000
+  },
+  "7YSZ": {
+    "rho_kg_m3":      6050,
+    "E_dense_Pa":     210e9,
+    "E_APS_Pa":       50e9,
+    "nu":             0.23,
+    "alpha_K":        10.5e-6,
+    "kappa_dense_Wm1K1": 2.2,
+    "kappa_APS_Wm1K1":   1.0,
+    "cp_Jkg1K1":      505,
+    "KIC_Pa_m05":     2.0e6,
+    "D0_O_m2s":       1.3e-6,
+    "Ea_DO_eV":       0.95,
+    "sources": ["Brossmann PCCP 2003", "Schlichting JMS 2001", "Clarke SCT 2003"]
+  },
+  "Si_bondcoat": {
+    "rho_kg_m3":      2329,
+    "E_Pa":           162e9,
+    "nu":             0.225,
+    "alpha_K":        2.6e-6,
+    "kappa_Wm1K1":    156.0,
+    "cp_Jkg1K1":      712,
+    "T_melt_K":       1687,
+    "k_p_dry_m2s_1473K": 1.11e-17,
+    "Ea_kp_dry_Jmol":    119000,
+    "k_p_wet_m2s_1589K": 1.11e-16,
+    "Ea_kp_wet_Jmol":    68000
+  },
+  "SiC_SiC_CMC": {
+    "rho_kg_m3":      2800,
+    "E_Pa":           230e9,
+    "nu":             0.15,
+    "alpha_K":        4.8e-6,
+    "kappa_Wm1K1":    15.0,
+    "cp_Jkg1K1":      750,
+    "UTS_Pa":         400e6
+  },
+  "SiO2_TGO": {
+    "rho_kg_m3":      2200,
+    "E_Pa":           70e9,
+    "nu":             0.17,
+    "alpha_K":        0.55e-6,
+    "kappa_Wm1K1":    1.4,
+    "cp_Jkg1K1":      740,
+    "PBR":            2.15
+  }
+}

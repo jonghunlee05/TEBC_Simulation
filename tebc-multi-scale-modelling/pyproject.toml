@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+
+[project]
+name = "tebc_simulation"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy", "scipy", "matplotlib", "pandas",
+    "ase", "pymatgen", "phonopy", "phono3py",
+    "fipy", "pycalphad", "salib", "h5py",
+]
+
+[project.optional-dependencies]
+fea = ["fenics-dolfinx", "petsc4py", "mpi4py"]
+ml  = ["deepmd-kit", "dpgen"]

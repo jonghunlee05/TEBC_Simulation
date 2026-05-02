@@ -1,0 +1,33 @@
+name: tebc
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy>=1.26
+  - scipy>=1.12
+  - matplotlib>=3.8
+  - pandas>=2.2
+  - h5py>=3.10
+  - pytest>=8.0
+  # FEA
+  - fenics-dolfinx>=0.8
+  - petsc4py>=3.20
+  - mpi4py>=3.1
+  # Phonons / MD
+  - phonopy>=2.23
+  - phono3py>=2.8
+  - ase>=3.23
+  - pymatgen>=2024.3
+  # Phase-field
+  - fipy>=3.4
+  # CALPHAD
+  - pycalphad>=0.10
+  # Sensitivity
+  - salib>=1.5
+  # ML potentials (optional GPU)
+  - pip
+  - pip:
+    - deepmd-kit>=3.0
+    - dpgen>=0.11
+    - uncertainpy>=1.4
