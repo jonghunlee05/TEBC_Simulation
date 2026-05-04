@@ -82,16 +82,21 @@ class CMASPhaseField:
         return self.W * g_prime + (G_beta - G_liq) * h_prime
 
     def step(self, dt: float, G_beta: float, G_liq: float) -> None:
-        """Explicit Euler step."""
-        phi_v = self.phi.value
-        c_v   = self.c.value
-        ac_eq = (fp.TransientTerm(var=self.phi)
-                 == self.M_phi * (fp.DiffusionTerm(coeff=self.kap, var=self.phi)
-                                  - self.W * fp.ImplicitSourceTerm(
-                                      coeff=6*phi_v*(1-2*phi_v),var=self.phi)))
-        M_c   = self.D_CMAS * c_v * (1-c_v)
-        ch_eq = (fp.TransientTerm(var=self.c)
-                 == fp.DiffusionTerm(coeff=M_c, var=self.c))
-        fp.solve([ac_eq, ch_eq], dt=dt)
-        self.phi.updateOld()
-        self.c.updateOld()
+        """Coupled Allen–Cahn / Cahn–Hilliard step.
+
+        STATUS: not yet implemented. The previous body called
+        ``fp.solve([eq1, eq2], dt=...)``, which is not a valid FiPy API,
+        and the Cahn–Hilliard equation lacked the ∇·(M_c ∇μ_c) coupling
+        through the chemical potential ``df_dphi`` — so the method would
+        either crash or silently solve uncoupled Fickian diffusion.
+
+        Re-implement using ``equation.solve(var=..., dt=...)`` (or a
+        coupled solver / sweep loop) once the KKS chemical-potential
+        matching is wired in. See spec §6.3.
+        """
+        raise NotImplementedError(
+            "CMASPhaseField.step is a stub. The Allen–Cahn / Cahn–Hilliard "
+            "coupling needs to be re-implemented with a valid FiPy solver "
+            "interface and the missing chemical-potential gradient. "
+            "See TEBC_implementation_spec.md §6.3.",
+        )

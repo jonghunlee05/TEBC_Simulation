@@ -21,16 +21,22 @@ except ImportError:
 
 def parse_elastic_tensor(outcar_path) -> np.ndarray:
     """
-    Parse VASP OUTCAR → 6×6 elastic stiffness matrix (GPa).
+    Parse VASP OUTCAR → 6×6 elastic stiffness matrix in **Pa**.
 
-    VASP writes C_ij in kBar; pymatgen converts to GPa.
-    Kohn-Sham equation solved self-consistently → stress-strain response
-    via finite distortions: C_ij = (1/V0) ∂²E/∂ε_i∂ε_j.
+    VASP writes C_ij in kBar (1 kBar = 1e8 Pa); we convert at the array
+    level so the rest of the pipeline can use SI throughout. Kohn–Sham
+    equations are solved self-consistently → stress–strain response via
+    finite distortions: C_ij = (1/V0) ∂²E/∂ε_i∂ε_j.
+
+    Note: older versions of pymatgen returned `outcar.elastic_tensor`
+    already in GPa. If you see stiffnesses ~10× too large, your pymatgen
+    is doing the conversion for you — drop the `* 1e8` scaling here and
+    use `* 1e9` (GPa→Pa) instead.
     """
     outcar = Outcar(str(outcar_path))
-    et = ElasticTensor.from_voigt(
-        np.array(outcar.elastic_tensor)
-    ) * 0.1  # kBar → GPa
+    C_kBar = np.array(outcar.elastic_tensor)
+    C_Pa = C_kBar * 1.0e8                                    # kBar → Pa
+    et = ElasticTensor.from_voigt(C_Pa)
     return et.voigt
 
 

@@ -11,17 +11,30 @@ from scipy.stats import linregress
 from tebc.utils import arrhenius_fit
 
 
-def compute_msd(positions: np.ndarray, species_mask: np.ndarray = None,
+def compute_msd(positions: np.ndarray, species_mask: np.ndarray | None = None,
                 max_lag_fraction: float = 0.5):
-    """Compute MSD from trajectory."""
+    """Compute MSD ⟨|Δr(τ)|²⟩ from a trajectory.
+
+    Returns the *total* mean square displacement (summed over x, y, z),
+    averaged over time origins and atoms — the form Einstein's relation
+    ⟨|Δr|²⟩ = 2·d·D·t expects, with d = 3 in 3D.
+
+    The earlier implementation used `np.mean(disp**2)`, which averages
+    over xyz as well as atoms/time-origins and therefore returned MSD/3.
+    Chained into `msd_to_diffusivity` (which divides by `2*dim = 6`
+    assuming a *full* MSD) it gave D ÷ 3.
+
+    `positions` shape: (n_frames, n_atoms, 3).
+    """
     if species_mask is not None:
         positions = positions[:, species_mask, :]
-    n_frames, n_atoms, _ = positions.shape
+    n_frames = positions.shape[0]
     n_lag = int(n_frames * max_lag_fraction)
     msd = np.zeros(n_lag)
     for lag in range(1, n_lag):
-        disp = positions[lag:] - positions[:-lag]
-        msd[lag] = np.mean(disp**2)
+        disp = positions[lag:] - positions[:-lag]              # (n_frames-lag, n_atoms, 3)
+        sq_disp = np.sum(disp ** 2, axis=2)                    # |Δr|² per (origin, atom)
+        msd[lag] = sq_disp.mean()                              # ⟨|Δr|²⟩
     return np.arange(n_lag), msd
 
 

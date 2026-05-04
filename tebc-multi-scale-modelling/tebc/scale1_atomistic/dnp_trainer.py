@@ -93,14 +93,24 @@ def run_deepmd_training(input_json: str = "input_deepmd.json",
 
 def evaluate_model_deviation(frames: list, model_paths: list) -> dict:
     """
-    Committee model deviation: σ_F = max_i √⟨|F_i^(k) - ⟨F_i⟩|²⟩_k
-    Threshold: σ_lo = 0.10 eV/Å, σ_hi = 0.25 eV/Å
+    Committee model deviation following the DP-GEN convention
+    (Zhang et al., CPC 253, 107206, 2020):
+
+        σ_F(frame) = max_i √( (1/K) Σ_k |F_i^(k) - ⟨F_i⟩|² )
+
+    i.e. the *maximum over atoms* of the per-atom RMS force deviation
+    across the K committee models. The earlier implementation took a
+    global RMS over (committee × atoms × xyz), which averages out
+    locally uncertain atoms and changes the meaning of the σ_lo / σ_hi
+    selection thresholds — active learning would pick the wrong frames.
+
+    Threshold defaults: σ_lo = 0.10 eV/Å, σ_hi = 0.25 eV/Å.
     """
     sigma_lo, sigma_hi = 0.10, 0.25
     try:
         from deepmd.calculator import DP
-    except ImportError:
-        raise ImportError("pip install deepmd-kit")
+    except ImportError as exc:
+        raise ImportError("pip install deepmd-kit") from exc
 
     calcs = [DP(model=p) for p in model_paths]
     sigma_F_all = []
@@ -109,11 +119,15 @@ def evaluate_model_deviation(frames: list, model_paths: list) -> dict:
         for calc in calcs:
             atoms = frame.copy()
             atoms.calc = calc
-            forces.append(atoms.get_forces())
-        forces = np.stack(forces)
-        mean_F = forces.mean(axis=0)
-        dev_F  = np.sqrt(((forces - mean_F)**2).mean())
-        sigma_F_all.append(dev_F)
+            forces.append(atoms.get_forces())                # (n_atoms, 3)
+        forces = np.stack(forces)                            # (K, n_atoms, 3)
+        mean_F = forces.mean(axis=0)                         # (n_atoms, 3)
+        # Per-atom RMS deviation across committee:
+        #   sqrt( (1/K) Σ_k Σ_α (F_i^(k)α - <F_i>α)² )
+        per_atom_dev = np.sqrt(
+            ((forces - mean_F) ** 2).sum(axis=2).mean(axis=0)
+        )                                                    # (n_atoms,)
+        sigma_F_all.append(per_atom_dev.max())
     sigma_F = np.array(sigma_F_all)
     return {
         "sigma_F": sigma_F,
