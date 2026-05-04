@@ -63,9 +63,12 @@ def kappa_anisotropic(J_xyz: np.ndarray, dt: float,
     kappa = np.zeros((3, 3))
     prefactor = V / (k_B * T**2)
     n = len(J_xyz)
+    # NumPy 2.0 removed np.trapz in favour of np.trapezoid; fall back if
+    # only the legacy name is present (NumPy < 2).
+    trapezoid = getattr(np, "trapezoid", None) or np.trapz
     for a in range(3):
         for b in range(3):
             c = np.correlate(J_xyz[:, a], J_xyz[:, b], mode='full')
             c = c[n-1:] / n
-            kappa[a, b] = prefactor * np.trapz(c, dx=dt)
+            kappa[a, b] = prefactor * trapezoid(c, dx=dt)
     return kappa

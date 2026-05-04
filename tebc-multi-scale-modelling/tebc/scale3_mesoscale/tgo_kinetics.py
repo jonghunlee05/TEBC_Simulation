@@ -40,9 +40,29 @@ def deal_grove_thickness(t: np.ndarray, k_p: float, k_l: float,
     return x
 
 
-def parabolic_rate_constant(T_K: float, k_p0: float, Ea_J: float) -> float:
-    """k_p(T) = k_p0 * exp(-Ea / RT)  [m²/s]"""
-    return arrhenius_eval(T_K, k_p0, Ea_J)
+def parabolic_rate_constant(T_K: float, k_ref: float, Ea_J: float,
+                              T_ref_K: float | None = None) -> float:
+    """Arrhenius extrapolation of a parabolic rate constant [m²/s].
+
+    Two calling conventions:
+
+    * ``T_ref_K`` given (preferred): `k_ref` is a *measured rate at T_ref*,
+      and the function returns
+          k(T) = k_ref · exp(-Ea/R · (1/T - 1/T_ref))
+      i.e. the standard reference-shifted Arrhenius form. This is what the
+      `materials_db.json` and `tebc.constants.MATERIALS` entries provide
+      (e.g. `k_p_m2s_1316C` measured at 1316 °C).
+
+    * ``T_ref_K`` omitted (legacy / explicit prefactor): `k_ref` is treated
+      as the infinite-temperature prefactor A in k(T) = A·exp(-Ea/RT). This
+      path is kept for callers that already have a true Arrhenius A from
+      a fit, but mis-using it with a *measured* k_ref will under-predict
+      k(T) at high temperature by exp(Ea/(R·T_ref)) — typically 10²–10⁴×.
+    """
+    if T_ref_K is None:
+        return arrhenius_eval(T_K, k_ref, Ea_J)
+    # Reference-shifted form, numerically stable for any |T - T_ref|.
+    return k_ref * np.exp(-Ea_J / R_gas * (1.0 / T_K - 1.0 / T_ref_K))
 
 
 def paralinear_ode(t: float, x: np.ndarray,

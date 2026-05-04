@@ -15,8 +15,15 @@ import numpy as np
 
 
 def triaxiality_factor(sigma_eq: float, sigma_H: float, nu: float) -> float:
-    """R_v = ⅔(1+ν) + 3(1-2ν)(σ_H / σ_eq)²"""
-    return (2.0/3.0)*(1+nu) + 3*(1-2*nu)*(sigma_H/(sigma_eq + 1e-30))**2
+    """R_v = ⅔(1+ν) + 3(1-2ν)(σ_H / σ_eq)²
+
+    Returns 0 when σ_eq = 0 (the unloaded state is undamaged by definition;
+    the previous +1e-30 guard returned ∞ via (σ_H/0)² and propagated NaN
+    into the damage rate).
+    """
+    if sigma_eq == 0.0:
+        return 0.0
+    return (2.0/3.0)*(1+nu) + 3*(1-2*nu)*(sigma_H/sigma_eq)**2
 
 
 def lemaitre_damage_rate(sigma_eq: float, sigma_H: float, nu: float,

@@ -64,11 +64,20 @@ def mode_heat_capacity(omega: np.ndarray, T: float) -> np.ndarray:
     """
     C_{qs} = k_B * (ℏω/k_BT)² * exp(ℏω/k_BT) / (exp(ℏω/k_BT) - 1)²
     Units: J/K per mode.
+
+    Returns 0 for ω ≤ 0 (acoustic Goldstone modes / numerical zeros) so
+    we don't trip the 0/0 in (eˣ − 1)² at machine zero.
     """
     from tebc.constants import hbar
+    omega = np.asarray(omega, dtype=float)
     x = hbar * omega / (k_B * T)
-    ex = np.exp(x)
-    return k_B * x**2 * ex / (ex - 1.0)**2
+    safe = x > 1e-12
+    out = np.zeros_like(x)
+    if np.any(safe):
+        xs = x[safe]
+        ex = np.exp(xs)
+        out[safe] = k_B * xs**2 * ex / (ex - 1.0)**2
+    return out
 
 
 # ── Birch-Murnaghan EOS ───────────────────────────────────────────────────────

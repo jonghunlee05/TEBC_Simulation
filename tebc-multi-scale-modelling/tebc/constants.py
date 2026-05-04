@@ -31,6 +31,10 @@ RS_K_L_REF       = 2.0e-9          # m/s recession at the reference state
 
 # ── Material database (RT unless stated) ─────────────────────────────────────
 MATERIALS = {
+    # NOTE on rate constants: every k_p / k_l entry is a *measured rate at
+    # the corresponding T_ref_*_K*, NOT an Arrhenius infinite-T prefactor.
+    # Use `tebc.scale3_mesoscale.tgo_kinetics.parabolic_rate_constant` to
+    # extrapolate to other T — it expects (T, k_ref, Ea, T_ref).
     "beta_Yb2Si2O7": {
         "rho":   6180.0,
         "E":     185e9,
@@ -42,10 +46,12 @@ MATERIALS = {
         "KIC":   1.75e6,
         "Gamma_interface": 30.0,
         "T_melt": 2123.0,
-        "k_p_TGO": 1e-14 / 3600,
-        "Ea_kp":  101e3,
-        "k_l":   2.78e-11,
-        "Ea_kl":  108e3,
+        "k_p_TGO":   1e-14 / 3600,    # measured at T_ref_kp
+        "T_ref_kp":  1589.15,         # K  (1316 °C, Tian 2013)
+        "Ea_kp":     101e3,           # J/mol
+        "k_l":       2.78e-11,        # measured at T_ref_kl
+        "T_ref_kl":  1589.15,
+        "Ea_kl":     108e3,
     },
     "beta_Y2Si2O7": {
         "rho":   4040.0,
@@ -58,10 +64,12 @@ MATERIALS = {
         "KIC":   2.0e6,
         "Gamma_interface": 35.0,
         "T_melt": 2048.0,
-        "k_p_TGO": 8e-15 / 3600,
-        "Ea_kp":  108e3,
-        "k_l":   1.5e-11,
-        "Ea_kl":  108e3,
+        "k_p_TGO":   8e-15 / 3600,
+        "T_ref_kp":  1589.15,
+        "Ea_kp":     108e3,
+        "k_l":       1.5e-11,
+        "T_ref_kl":  1589.15,
+        "Ea_kl":     108e3,
     },
     "7YSZ": {
         "rho":   6050.0,
@@ -86,10 +94,12 @@ MATERIALS = {
         "kappa": 156.0,
         "cp":    712.0,
         "T_melt": 1687.0,
-        "k_p_dry": 4e-14 / 3600,
-        "Ea_kp_dry": 119e3,
-        "k_p_wet": 4e-13 / 3600,
-        "Ea_kp_wet": 68e3,
+        "k_p_dry":     4e-14 / 3600,  # measured at T_ref_dry
+        "T_ref_kp_dry": 1473.0,
+        "Ea_kp_dry":    119e3,
+        "k_p_wet":     4e-13 / 3600,  # measured at T_ref_wet
+        "T_ref_kp_wet": 1589.0,
+        "Ea_kp_wet":    68e3,
     },
     "SiC_SiC_CMC": {
         "rho":   2800.0,

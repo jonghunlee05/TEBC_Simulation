@@ -29,6 +29,12 @@ class TEBCConfig:
     h_bond:   float = 100e-6
     h_sub:    float = 5e-3
 
+    # Layer porosities — kept distinct because APS YSZ topcoats are far more
+    # porous than dense EBC silicates. The earlier code used a single 0.12
+    # value for both, which derated the dense EBC modulus by ~50 %.
+    phi_TBC:  float = 0.12     # APS-YSZ typical (8–25 %)
+    phi_EBC:  float = 0.03     # dense β-RE silicate typical (≤ 5 %)
+
     # Operating conditions.
     # Defaults reflect a representative aero-engine combustor environment
     # within the calibration window of the Robinson–Smialek correlation
@@ -77,8 +83,16 @@ class ScaleParameters:
     recession: float = 0.0
 
     sigma_max: float = 0.0
+    sigma_thermal: float = 0.0
+    sigma_TGO_growth: float = 0.0
     G_drive:   float = 0.0
     fail_index: float = 0.0
+
+    # Diagnostics for the layer-resolved homogenization.
+    E_eff_TBC:     float = 0.0
+    kappa_eff_TBC: float = 0.0
+    E_eff_EBC:     float = 0.0
+    kappa_eff_EBC: float = 0.0
 
 
 def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
@@ -111,15 +125,24 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
     if cfg.run_scale2:
         logger.info("Scale 2: MD/QHA thermal properties...")
         mat = MATERIALS[cfg.material_EBC]
-        T_service = (cfg.T_hot + cfg.T_cold) / 2.0
+        # Mean-section T for elastic softening; hot-face T for the
+        # transport processes (oxygen diffusion, TGO oxidation).
+        T_mean = (cfg.T_hot + cfg.T_cold) / 2.0
+        T_hot  = cfg.T_hot
         if cfg.material_TBC == "7YSZ":
             from tebc.constants import k_B
             ysz = MATERIALS["7YSZ"]
+            # D_O drives oxygen flux into the TGO interface — that flux is
+            # set by the *hot-face* T, not the section average. Using the
+            # average T here previously underpredicted D_O by ~10⁴× at
+            # representative T_hot/T_cold.
             params.D_O = (ysz["D0_O"]
-                          * np.exp(-ysz["Ea_DO"]/(k_B * T_service)))
+                          * np.exp(-ysz["Ea_DO"]/(k_B * T_hot)))
         params.alpha_T  = mat["alpha"]
         params.kappa_T  = np.eye(3) * mat["kappa"]
-        params.C_ij_T   = params.C_ijkl * (1 - 0.15*(T_service-300)/1300)
+        # NOTE: this 15 %-over-1300 K linear softening is a placeholder
+        # (no thermodynamic basis); flagged in KNOWN_LIMITATIONS.
+        params.C_ij_T   = params.C_ijkl * (1 - 0.15*(T_mean-300)/1300)
         logger.info(f"  α={params.alpha_T*1e6:.2f}×10⁻⁶ K⁻¹, κ={params.kappa_T[0,0]:.2f} W/mK")
 
     # ── SCALE 3 ──
@@ -130,26 +153,53 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
             robinson_smialek_recession,
             solve_paralinear,
         )
-        mat = MATERIALS[cfg.material_bond]
+        mat_bond = MATERIALS[cfg.material_bond]
         T_service = cfg.T_hot
-        k_p = parabolic_rate_constant(T_service, mat["k_p_wet"], mat["Ea_kp_wet"])
+
+        # Reference-shifted Arrhenius — the database stores k_p as a
+        # measured rate at T_ref_kp_wet, NOT an infinite-T prefactor.
+        k_p = parabolic_rate_constant(
+            T_service, mat_bond["k_p_wet"], mat_bond["Ea_kp_wet"],
+            T_ref_K=mat_bond["T_ref_kp_wet"],
+        )
         k_l = robinson_smialek_recession(T_service, cfg.P_H2O, cfg.P_tot, cfg.v_gas)
         t_total = cfg.n_cycles * 3600.0
         sol = solve_paralinear((0, t_total), k_p, k_l)
         params.x_TGO   = float(sol["x_TGO"][-1])
         params.recession = float(sol["recession"][-1])
 
-        from tebc.coupling.homogenization import maxwell_eucken_kappa, phani_niyogi_modulus
-        phi_APS = 0.12
-        params.kappa_eff = maxwell_eucken_kappa(
-            MATERIALS[cfg.material_EBC]["kappa"], 0.025, phi_APS)
-        params.E_eff = phani_niyogi_modulus(
-            MATERIALS[cfg.material_EBC]["E"], phi_APS)
-        logger.info(f"  TGO={params.x_TGO*1e6:.2f} μm, recession={params.recession*1e6:.1f} μm")
+        # Layer-resolved homogenization. The previous code applied a 12 %
+        # APS-YSZ porosity to the dense EBC silicate — physically wrong.
+        from tebc.coupling.homogenization import (
+            maxwell_eucken_kappa, phani_niyogi_modulus,
+        )
+        # Pore-gas κ rises with T; use a simple linear interpolation
+        # between still-air at 300 K (~0.026 W/m·K) and ~0.1 at 1600 K.
+        kappa_pore = 0.026 + (0.1 - 0.026) * max(min((T_service-300)/1300, 1.0), 0.0)
+
+        mat_TBC = MATERIALS[cfg.material_TBC]
+        mat_EBC = MATERIALS[cfg.material_EBC]
+        params.kappa_eff_TBC = maxwell_eucken_kappa(
+            mat_TBC["kappa"], kappa_pore, cfg.phi_TBC)
+        params.E_eff_TBC     = phani_niyogi_modulus(
+            mat_TBC.get("E_APS", mat_TBC["E"]), cfg.phi_TBC)
+        params.kappa_eff_EBC = maxwell_eucken_kappa(
+            mat_EBC["kappa"], kappa_pore, cfg.phi_EBC)
+        params.E_eff_EBC     = phani_niyogi_modulus(
+            mat_EBC["E"], cfg.phi_EBC)
+
+        # Back-compat scalar: report the EBC values as the headline E_eff
+        # since Scale 4 stress is computed in the EBC layer.
+        params.kappa_eff = params.kappa_eff_EBC
+        params.E_eff     = params.E_eff_EBC
+        logger.info(f"  TGO={params.x_TGO*1e6:.2f} μm, recession={params.recession*1e6:.1f} μm, "
+                    f"E_eff_EBC={params.E_eff_EBC/1e9:.1f} GPa, "
+                    f"E_eff_TBC={params.E_eff_TBC/1e9:.1f} GPa")
 
     # ── SCALE 4 ──
     if cfg.run_scale4:
         logger.info("Scale 4: Continuum thermoelastic analysis...")
+        from tebc.scale3_mesoscale.tgo_kinetics import tgo_growth_stress
         from tebc.scale4_continuum.thermoelastic import (
             bilayer_mismatch_stress,
             energy_release_rate_steady_state,
@@ -157,15 +207,46 @@ def run_pipeline(cfg: TEBCConfig) -> ScaleParameters:
         dT = cfg.T_cold - cfg.T_dep
         mat_EBC = MATERIALS[cfg.material_EBC]
         mat_sub = MATERIALS[cfg.material_sub]
-        sigma_EBC = bilayer_mismatch_stress(
+        mat_TGO = MATERIALS["SiO2_TGO"]
+
+        # Use the *in-plane* CTE component when available — for monoclinic
+        # β-RE silicates, the ab-plane CTE differs from the scalar mean by
+        # up to ~3×, which directly scales the bilayer mismatch stress.
+        alpha_EBC_inplane = (
+            float(mat_EBC["alpha_aniso"][0])
+            if "alpha_aniso" in mat_EBC else mat_EBC["alpha"]
+        )
+        sigma_thermal = bilayer_mismatch_stress(
             params.E_eff, mat_EBC["nu"],
-            mat_EBC["alpha"], mat_sub["alpha"], dT)
-        params.sigma_max = abs(sigma_EBC)
-        params.G_drive   = energy_release_rate_steady_state(
-            sigma_EBC, cfg.h_EBC, params.E_eff, mat_EBC["nu"])
+            alpha_EBC_inplane, mat_sub["alpha"], dT)
+
+        # TGO growth stress (PBR + thermal in the SiO2 scale itself).
+        # Volumetric growth strain is approximated as PBR^(1/3) − 1 inside
+        # `tgo_growth_stress`; this stress is *additional* to the thermal
+        # mismatch in the EBC and was previously computed but never wired
+        # into the failure index.
+        sigma_TGO = tgo_growth_stress(
+            params.x_TGO, mat_TGO["E"], mat_TGO["nu"],
+            mat_TGO["alpha"], mat_sub["alpha"], dT,
+            PBR=mat_TGO.get("PBR", 2.15),
+        )
+
+        # Total film stress that drives delamination ≈ thermal mismatch in
+        # the EBC + a portion of the TGO growth stress that is transmitted
+        # through the bond coat. We combine them conservatively as
+        # |σ_thermal| + |σ_TGO| since both are biaxial in the same plane;
+        # this is an upper-bound estimate (no plastic relaxation).
+        sigma_total = np.sign(sigma_thermal) * (abs(sigma_thermal) + abs(sigma_TGO))
+
+        params.sigma_thermal    = sigma_thermal
+        params.sigma_TGO_growth = sigma_TGO
+        params.sigma_max        = abs(sigma_total)
+        params.G_drive          = energy_release_rate_steady_state(
+            sigma_total, cfg.h_EBC, params.E_eff, mat_EBC["nu"])
         Gamma_int = mat_EBC["Gamma_interface"]
         params.fail_index = params.G_drive / Gamma_int
-        logger.info(f"  σ={sigma_EBC/1e6:.1f} MPa, G={params.G_drive:.1f} J/m², FI={params.fail_index:.3f}")
+        logger.info(f"  σ_th={sigma_thermal/1e6:.1f} MPa, σ_TGO={sigma_TGO/1e6:.1f} MPa, "
+                    f"G={params.G_drive:.1f} J/m², FI={params.fail_index:.3f}")
 
     # ── SENSITIVITY ──
     if cfg.run_sensitivity:
