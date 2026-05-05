@@ -55,23 +55,54 @@ def maxwell_eucken_kappa(kappa_s: float, kappa_p: float, phi: float) -> float:
 
 
 def phani_niyogi_modulus(E0: float, phi: float,
-                          phi_c: float = 0.6, n: float = 2.0) -> float:
-    """E(φ) = E0 * (1 - φ/φ_c)^n"""
+                          phi_c: float = 0.45, n: float = 2.0) -> float:
+    """E(φ) = E0 · (1 − φ/φ_c)^n.
+
+    Default φ_c = 0.45 reflects the empirical percolation threshold for
+    elastic stiffness in plasma-sprayed ceramic coatings (typically
+    0.4–0.5 for inter-splat APS porosity). The earlier default of 0.6
+    over-estimated retained stiffness at the 10–20 % porosities where
+    APS-YSZ actually operates.
+    """
     return E0 * max(1.0 - phi/phi_c, 0.0)**n
 
 
 def cahill_pohl_kappa_min(kappa_s: float, n: float,
                            v_speeds: np.ndarray,
-                           T: float, theta_D: float) -> float:
-    """Cahill-Pohl minimum thermal conductivity (PRB 46, 6131, 1992)."""
+                           T: float,
+                           theta_D: float | np.ndarray | None = None) -> float:
+    """Cahill–Watson–Pohl minimum thermal conductivity (PRB 46, 6131, 1992).
+
+        κ_min = (π/6)^(1/3) · k_B · n^(2/3) · Σ_i v_i (T/Θ_i)² ·
+                ∫₀^(Θ_i/T) x³ eˣ / (eˣ − 1)² dx
+
+    The original CWP form has a *per-branch* Debye temperature
+        Θ_i = v_i · (ℏ/k_B) · (6π²n)^(1/3).
+    Pass `theta_D=None` (default) to compute Θ_i from each sound speed,
+    a scalar to use a single Θ for every branch (the previous behaviour),
+    or an array to specify Θ per branch explicitly.
+    """
     from scipy.integrate import quad
 
-    from tebc.constants import k_B
+    from tebc.constants import hbar, k_B
     prefactor = (np.pi/6)**(1/3) * k_B * n**(2/3)
+
+    v_speeds = np.atleast_1d(np.asarray(v_speeds, dtype=float))
+    if theta_D is None:
+        Theta = v_speeds * (hbar / k_B) * (6 * np.pi**2 * n)**(1/3)
+    elif np.isscalar(theta_D):
+        Theta = np.full_like(v_speeds, float(theta_D))
+    else:
+        Theta = np.asarray(theta_D, dtype=float)
+        if Theta.shape != v_speeds.shape:
+            raise ValueError(
+                f"theta_D shape {Theta.shape} does not match v_speeds shape "
+                f"{v_speeds.shape}.",
+            )
+
     total = 0.0
-    for v_i in v_speeds:
-        Theta_i = theta_D
-        ratio   = T / Theta_i if Theta_i > 0 else 1.0
+    for v_i, Theta_i in zip(v_speeds, Theta, strict=True):
+        ratio = T / Theta_i if Theta_i > 0 else 1.0
         def integrand(x):
             return x**3 * np.exp(x) / (np.expm1(x) + 1e-300)**2
         I, _ = quad(integrand, 0, 1.0/ratio, limit=100)

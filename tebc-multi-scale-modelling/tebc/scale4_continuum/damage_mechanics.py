@@ -17,11 +17,13 @@ import numpy as np
 def triaxiality_factor(sigma_eq: float, sigma_H: float, nu: float) -> float:
     """R_v = ⅔(1+ν) + 3(1-2ν)(σ_H / σ_eq)²
 
-    Returns 0 when σ_eq = 0 (the unloaded state is undamaged by definition;
-    the previous +1e-30 guard returned ∞ via (σ_H/0)² and propagated NaN
-    into the damage rate).
+    σ_eq is by definition the von Mises norm (≥ 0). We treat σ_eq ≤ 0
+    as the unloaded / undamaged state and return 0 — both the σ_eq = 0
+    case (previously returned ∞ via the +1e-30 guard) and any caller
+    that mistakenly hands in a signed value (returns 0 rather than
+    silently squaring the wrong sign).
     """
-    if sigma_eq == 0.0:
+    if sigma_eq <= 0.0:
         return 0.0
     return (2.0/3.0)*(1+nu) + 3*(1-2*nu)*(sigma_H/sigma_eq)**2
 
@@ -42,11 +44,18 @@ def mazars_equivalent_strain(eps_principal: np.ndarray) -> float:
 
 
 def mazars_damage(eps_tilde: float, eps0: float | None = None,
-                   A: float | None = None, B: float | None = None) -> float:
+                   A: float | None = None, B: float | None = None,
+                   D_max: float = 0.999) -> float:
     """Mazars damage function for quasi-brittle materials.
 
-    Defaults pulled from `tebc.constants` (MAZARS_EPS0_DEFAULT,
-    MAZARS_A_TENSION, MAZARS_B_TENSION).
+    Defaults for ε₀, A, B pulled from `tebc.constants`
+    (MAZARS_EPS0_DEFAULT, MAZARS_A_TENSION, MAZARS_B_TENSION).
+
+    `D_max` (default 0.999) is the numerical ceiling — leaving a residual
+    elastic stiffness E·(1 − D_max) that prevents the constitutive
+    tangent from going singular. For a clean transition to fracture,
+    drive D_max → 1 and switch to element deletion / cohesive zones at
+    that threshold.
     """
     from tebc.constants import (
         MAZARS_A_TENSION,
@@ -59,7 +68,7 @@ def mazars_damage(eps_tilde: float, eps0: float | None = None,
     if eps_tilde <= eps0:
         return 0.0
     D = 1.0 - (1.0-A)*eps0/eps_tilde - A*np.exp(-B*(eps_tilde - eps0))
-    return np.clip(D, 0.0, 0.999)
+    return np.clip(D, 0.0, D_max)
 
 
 class TVHCohesiveZone:
@@ -102,8 +111,17 @@ class TVHCohesiveZone:
         return T_n, T_t
 
     def benzeggagh_kenane_toughness(self, G_II: float, G_T: float,
-                                     eta: float = 1.5) -> float:
-        """G_c(ψ) = G_Ic + (G_IIc - G_Ic)(G_II/G_T)^η"""
+                                     eta: float = 1.5,
+                                     G_IIc: float | None = None) -> float:
+        """G_c(ψ) = G_Ic + (G_IIc - G_Ic)(G_II/G_T)^η
+
+        `G_IIc` defaults to `1.5 · G_Ic` (the previous hardcoded value)
+        only when not supplied; pass an experimental ratio for real
+        coatings.
+        """
         G_Ic  = self.G_c
-        G_IIc = 1.5 * self.G_c
-        return G_Ic + (G_IIc - G_Ic) * (G_II / (G_T + 1e-30))**eta
+        if G_IIc is None:
+            G_IIc = 1.5 * G_Ic
+        if G_T <= 0.0:
+            return G_Ic
+        return G_Ic + (G_IIc - G_Ic) * (G_II / G_T)**eta

@@ -12,11 +12,20 @@ from __future__ import annotations
 
 import numpy as np
 
-try:
-    from pymatgen.analysis.elasticity import ElasticTensor
-    from pymatgen.io.vasp.outputs import Outcar, Vasprun
-except ImportError:
-    raise ImportError("pip install pymatgen")
+
+def _require_pymatgen():
+    """Lazy-load pymatgen so importing this module doesn't fail when
+    pymatgen is missing. Only the parsing functions need it; the pure
+    Python helpers (cohesive_energy etc.) do not."""
+    try:
+        from pymatgen.analysis.elasticity import ElasticTensor
+        from pymatgen.io.vasp.outputs import Outcar, Vasprun
+    except ImportError as exc:
+        raise ImportError(
+            "pymatgen is required for VASP output parsing — "
+            "install with `pip install pymatgen`.",
+        ) from exc
+    return ElasticTensor, Outcar, Vasprun
 
 
 def parse_elastic_tensor(outcar_path) -> np.ndarray:
@@ -33,6 +42,7 @@ def parse_elastic_tensor(outcar_path) -> np.ndarray:
     is doing the conversion for you — drop the `* 1e8` scaling here and
     use `* 1e9` (GPa→Pa) instead.
     """
+    ElasticTensor, Outcar, _ = _require_pymatgen()
     outcar = Outcar(str(outcar_path))
     C_kBar = np.array(outcar.elastic_tensor)
     C_Pa = C_kBar * 1.0e8                                    # kBar → Pa
@@ -42,6 +52,7 @@ def parse_elastic_tensor(outcar_path) -> np.ndarray:
 
 def parse_structure_energy(vasprun_path) -> dict:
     """Parse vasprun.xml → E0 (eV/atom), V0 (Å³), forces (eV/Å)."""
+    _, _, Vasprun = _require_pymatgen()
     vr = Vasprun(str(vasprun_path))
     struct = vr.final_structure
     N = len(struct)
@@ -87,7 +98,18 @@ def compute_defect_formation_energy(E_defect: float, E_host: float,
             + q * (E_VBM + E_Fermi) + E_corr)
 
 
-def extract_born_effective_charges(outcar_path) -> np.ndarray:
-    """Parse Born effective charges Z*_{I,αβ} from VASP OUTCAR."""
+def extract_born_effective_charges(outcar_path,
+                                    enforce_sum_rule: bool = True) -> np.ndarray:
+    """Parse Born effective charges Z*_{I,αβ} from VASP OUTCAR.
+
+    If `enforce_sum_rule` is True (default), apply the acoustic sum rule
+    Σᵢ Z*ᵢ = 0 by subtracting the mean from every site. VASP rarely
+    satisfies this exactly because of finite numerics, and downstream
+    LO-TO splitting in the phonon spectrum is wrong without it.
+    """
+    _, Outcar, _ = _require_pymatgen()
     outcar = Outcar(str(outcar_path))
-    return np.array(outcar.born)
+    Z = np.array(outcar.born)
+    if enforce_sum_rule and Z.size > 0:
+        Z = Z - Z.mean(axis=0)
+    return Z

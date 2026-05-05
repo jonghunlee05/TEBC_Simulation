@@ -108,9 +108,17 @@ def solve_paralinear(t_span: tuple, k_p: float, k_l: float,
     sol = solve_ivp(rhs_y, t_span, [y0], args=(k_p, k_l),
                     t_eval=t_eval, method="LSODA",
                     rtol=1e-8, atol=1e-24)
+    if not sol.success:
+        import warnings
+        warnings.warn(
+            f"solve_paralinear: LSODA reported failure ({sol.message!r}); "
+            f"results may be unreliable.",
+            RuntimeWarning, stacklevel=2,
+        )
     x_TGO     = np.sqrt(np.maximum(sol.y[0], 0.0))
     recession = k_l * sol.t
-    return {"t": sol.t, "x_TGO": x_TGO, "recession": recession, "x_ss": x_ss}
+    return {"t": sol.t, "x_TGO": x_TGO, "recession": recession,
+            "x_ss": x_ss, "success": bool(sol.success)}
 
 
 def tgo_growth_stress(x_TGO: float, E_TGO: float, nu_TGO: float,
@@ -118,31 +126,136 @@ def tgo_growth_stress(x_TGO: float, E_TGO: float, nu_TGO: float,
                        dT: float, PBR: float = 2.15) -> float:
     """
     Total TGO biaxial stress = thermal + growth (PBR).
+
+    The linear (1-D) growth strain from a volumetric Pilling–Bedworth
+    ratio is
+
+        ε_growth = PBR^(1/3) − 1
+
+    which is the cube-root of the volume ratio minus one. The previous
+    implementation used the small-strain approximation (PBR − 1)/3, which
+    only holds for PBR ≈ 1; for SiO₂ on Si (PBR = 2.15) it overestimates
+    the strain by ≈ 30 % (0.383 vs 0.291).
+
+    Note: this is the *elastic* growth-stress estimate. Real TGOs
+    accommodate most of this strain by viscoplastic flow in the bond
+    coat, so measured stresses are typically 1–3 GPa rather than the
+    ~30 GPa this formula predicts. See KNOWN_LIMITATIONS.md item #4.
     """
-    eps_growth = (PBR - 1.0) / 3.0
+    eps_growth = PBR ** (1.0 / 3.0) - 1.0
     biaxial_mod = E_TGO / (1 - nu_TGO)
     sigma_thermal = biaxial_mod * (alpha_TGO - alpha_sub) * dT
     sigma_growth  = -biaxial_mod * eps_growth
     return sigma_thermal + sigma_growth
 
 
+def integrate_tgo_temperature_schedule(
+    t_total: float, schedule: list,
+    k_p_at: callable, k_l_at: callable,
+    x0: float | None = None, n_points: int = 500,
+) -> dict:
+    """Integrate the paralinear ODE under a periodic temperature schedule.
+
+    Real T/EBC service is *cyclic*, not isothermal; the bulk of each
+    cycle is spent ramping or dwelling at intermediate T where the
+    Arrhenius rates k_p(T), k_l(T) are orders of magnitude smaller than
+    at T_hot. Integrating at constant T_hot for the whole `t_total`
+    therefore overestimates total TGO growth by a large factor.
+
+    Parameters
+    ----------
+    t_total : float
+        Total cumulative service time [s] (sum of all dwells across all
+        cycles).
+    schedule : list of (T_K, fraction)
+        Duty cycle: each entry is a temperature [K] and the fraction of
+        the cycle spent at that T. Fractions must sum to 1. For a simple
+        hot-dwell / cold-soak engine cycle, e.g.
+        [(1600, 0.7), (1000, 0.2), (400, 0.1)].
+    k_p_at, k_l_at : callable
+        Functions T_K → rate constant (m²/s and m/s respectively).
+    x0, n_points : numerics, see `solve_paralinear`.
+
+    Returns
+    -------
+    dict with keys ``t``, ``x_TGO``, ``recession``, ``x_ss_at_each_T``,
+    ``effective_k_p``, ``effective_k_l``. The trajectory uses the
+    duty-cycle-weighted *effective* rates rather than a piecewise
+    integration; this is exact for a true paralinear (where the rate is
+    additive) and a defensible average for the parabolic regime.
+    """
+    fracs = np.array([f for _, f in schedule], dtype=float)
+    if not np.isclose(fracs.sum(), 1.0):
+        raise ValueError(
+            f"Schedule fractions must sum to 1, got {fracs.sum():.6f}.",
+        )
+    Ts = np.array([T for T, _ in schedule], dtype=float)
+
+    # Duty-cycle-weighted effective rates.
+    k_p_eff = float(sum(f * k_p_at(T) for T, f in schedule))
+    k_l_eff = float(sum(f * k_l_at(T) for T, f in schedule))
+
+    sol = solve_paralinear((0.0, t_total), k_p_eff, k_l_eff,
+                            x0=x0, n_points=n_points)
+    sol["effective_k_p"] = k_p_eff
+    sol["effective_k_l"] = k_l_eff
+    sol["x_ss_at_each_T"] = np.array([
+        k_p_at(T) / (2.0 * k_l_at(T)) if k_l_at(T) > 0 else np.inf
+        for T in Ts
+    ])
+    return sol
+
+
 def robinson_smialek_recession(T_K: float, P_H2O: float,
                                 P_tot: float, v_gas: float,
                                 Ea_J: float = 108e3,
-                                k0: float | None = None) -> float:
+                                k0: float | None = None,
+                                warn_out_of_domain: bool = True) -> float:
     """k_l ∝ v^{0.5} * P_H2O^2 * P_tot^{-0.5} * exp(-ΔQ/RT).
 
     The default `k0` is back-solved so the correlation reproduces the
     Robinson–Smialek calibration anchor (`tebc.constants.RS_*`).
+
+    `warn_out_of_domain` (default True) emits a `UserWarning` when any
+    of (v_gas, P_H2O, T_K) exceeds 5× / drops below 0.2× the calibration
+    anchors. Beyond that range the v^0.5 dependence is empirically
+    questionable (boundary-layer regime change, droplet impact, etc.).
     """
+    from tebc.constants import (
+        RS_K_L_REF,
+        RS_P_H2O_REF_PA,
+        RS_T_REF_K,
+        RS_V_GAS_REF,
+        atm_Pa,
+    )
+    if warn_out_of_domain:
+        import warnings
+        msgs = []
+        if v_gas > 5.0 * RS_V_GAS_REF or v_gas < 0.2 * RS_V_GAS_REF:
+            msgs.append(
+                f"v_gas={v_gas:.3g} m/s is outside the Opila/Robinson–Smialek "
+                f"calibration window of ~{RS_V_GAS_REF} m/s "
+                f"(v^0.5 dependence is empirical; out-of-domain behaviour is "
+                f"not characterised).",
+            )
+        if P_H2O > 5.0 * RS_P_H2O_REF_PA or P_H2O < 0.2 * RS_P_H2O_REF_PA:
+            msgs.append(
+                f"P_H2O={P_H2O:.3g} Pa is outside the calibration window "
+                f"of ~{RS_P_H2O_REF_PA:.3g} Pa.",
+            )
+        if T_K > RS_T_REF_K + 200 or T_K < RS_T_REF_K - 300:
+            msgs.append(
+                f"T={T_K:.0f} K is outside the {RS_T_REF_K-300:.0f}–"
+                f"{RS_T_REF_K+200:.0f} K window of the calibration.",
+            )
+        if msgs:
+            warnings.warn(
+                "Robinson–Smialek extrapolated outside its calibration "
+                "domain: " + "; ".join(msgs),
+                UserWarning, stacklevel=2,
+            )
+
     if k0 is None:
-        from tebc.constants import (
-            RS_K_L_REF,
-            RS_P_H2O_REF_PA,
-            RS_T_REF_K,
-            RS_V_GAS_REF,
-            atm_Pa,
-        )
         k0 = RS_K_L_REF / (
             RS_V_GAS_REF**0.5
             * RS_P_H2O_REF_PA**2

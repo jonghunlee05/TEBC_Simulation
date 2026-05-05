@@ -38,56 +38,10 @@ def convective_bc_heat_flux(T_surface: float, T_inf: float,
     return h_conv*(T_surface - T_inf) + emissivity*sigma_SB*(T_surface**4 - T_rad**4)
 
 
-def fenics_thermoelastic_setup():
-    """Return FEniCSx skeleton script as string."""
-    code = '''
-import dolfinx
-from dolfinx import fem, mesh, io
-from dolfinx.fem.petsc import LinearProblem
-import ufl
-import numpy as np
-from mpi4py import MPI
-
-domain = mesh.create_rectangle(MPI.COMM_WORLD, [[0,0],[1e-2,6e-3]],
-                                [200,120], mesh.CellType.triangle)
-
-V_T = fem.functionspace(domain, ("Lagrange", 1))
-V_u = fem.functionspace(domain, ("Lagrange", 1, (2,)))
-
-T, theta  = ufl.TrialFunction(V_T), ufl.TestFunction(V_T)
-u, v_test = ufl.TrialFunction(V_u), ufl.TestFunction(V_u)
-
-V0     = fem.functionspace(domain, ("DG", 0))
-kappa  = fem.Function(V0)
-rho_cp = fem.Function(V0)
-E_mod  = fem.Function(V0)
-nu_mod = fem.Function(V0)
-alpha  = fem.Function(V0)
-
-def eps(u):
-    return ufl.sym(ufl.grad(u))
-
-def sigma(u, T_field, T_ref=300.0):
-    mu    = E_mod / (2*(1+nu_mod))
-    lam   = E_mod*nu_mod / ((1+nu_mod)*(1-2*nu_mod))
-    strain = eps(u)
-    dT     = T_field - T_ref
-    return (2*mu*strain + lam*ufl.tr(strain)*ufl.Identity(2)
-            - (3*lam + 2*mu)*alpha*dT*ufl.Identity(2))
-
-dt_val = fem.Constant(domain, 1.0)
-T_old  = fem.Function(V_T)
-T_old.x.array[:] = 300.0
-
-a_T = (rho_cp/dt_val * T * theta * ufl.dx
-       + kappa * ufl.dot(ufl.grad(T), ufl.grad(theta)) * ufl.dx)
-L_T = rho_cp/dt_val * T_old * theta * ufl.dx
-
-T_field = fem.Function(V_T)
-a_u = ufl.inner(sigma(u, T_field), eps(v_test)) * ufl.dx
-L_u = ufl.dot(fem.Constant(domain, np.zeros(2)), v_test) * ufl.dx
-
-problem_T = LinearProblem(a_T, L_T, bcs=[], petsc_options={"ksp_type": "cg"})
-problem_u = LinearProblem(a_u, L_u, bcs=[], petsc_options={"ksp_type": "gmres"})
-'''
-    return code
+#
+# `fenics_thermoelastic_setup` was removed: it returned a string of
+# FEniCSx code that was never executed and was misleading the README /
+# spec into claiming Scale 4 FEA exists. A real coupled thermo-elastic
+# FEM driver belongs in its own module (e.g. `tebc/scale4_continuum/
+# fem_solver.py`) once dolfinx is wired into the pipeline. See spec
+# §7 and KNOWN_LIMITATIONS.md.

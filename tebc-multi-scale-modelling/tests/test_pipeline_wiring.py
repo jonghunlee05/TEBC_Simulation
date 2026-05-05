@@ -32,10 +32,43 @@ def test_layer_resolved_porosity_yields_distinct_E_eff(base_result):
 
 def test_TGO_growth_stress_is_nonzero_and_recorded(base_result):
     """The growth contribution was previously computed in a function but
-    never used; it now appears in the dataclass and contributes to σ_max."""
+    never used; it now appears in the dataclass."""
     assert base_result.sigma_TGO_growth != 0.0
     assert base_result.sigma_thermal != 0.0
-    assert base_result.sigma_max >= abs(base_result.sigma_thermal)
+
+
+def test_per_interface_failure_indices_are_separate(base_result):
+    """σ_thermal lives in the EBC and σ_TGO in the TGO scale; the two
+    must not be combined into a single ERR. Each interface should have
+    its own G_drive and FI, and the headline values should pick the
+    worse of the two — not sum them.
+    """
+    import math
+    assert math.isfinite(base_result.G_drive_EBC)
+    assert math.isfinite(base_result.G_drive_TGO)
+    assert math.isfinite(base_result.fail_index_EBC)
+    assert math.isfinite(base_result.fail_index_TGO)
+
+    # Both per-interface FIs are non-negative.
+    assert base_result.fail_index_EBC >= 0.0
+    assert base_result.fail_index_TGO >= 0.0
+
+    # Headline FI equals the max of the two — and is *not* their sum.
+    fi_max = max(base_result.fail_index_EBC, base_result.fail_index_TGO)
+    fi_sum = base_result.fail_index_EBC + base_result.fail_index_TGO
+    assert base_result.fail_index == pytest.approx(fi_max, rel=1e-12)
+    if base_result.fail_index_EBC > 0 and base_result.fail_index_TGO > 0:
+        assert base_result.fail_index < fi_sum, (
+            "Headline FI should not be the arithmetic sum of per-interface "
+            "FIs — that was the bug the previous commit introduced."
+        )
+
+    # fail_mode reports which interface dominates.
+    assert base_result.fail_mode in {"EBC", "TGO"}
+    if base_result.fail_index_EBC >= base_result.fail_index_TGO:
+        assert base_result.fail_mode == "EBC"
+    else:
+        assert base_result.fail_mode == "TGO"
 
 
 def test_in_plane_CTE_used_for_mismatch(base_result):

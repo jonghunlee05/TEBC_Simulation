@@ -118,5 +118,10 @@ MATERIALS = {
         "kappa": 1.4,
         "cp":    740.0,
         "PBR":   2.15,
+        # TGO/bond-coat interface toughness, used to evaluate the
+        # delamination drive at the SiO2/Si interface separately from the
+        # EBC channeling-crack drive. Order-of-magnitude estimate; needs
+        # calibration against pull-test data.
+        "Gamma_interface": 10.0,    # J/m²
     },
 }
