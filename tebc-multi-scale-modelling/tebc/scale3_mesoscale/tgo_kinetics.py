@@ -81,7 +81,8 @@ def paralinear_ode(t: float, x: np.ndarray,
 
 def solve_paralinear(t_span: tuple, k_p: float, k_l: float,
                       x0: float = None,
-                      n_points: int = 500) -> dict:
+                      n_points: int = 500,
+                      PBR: float = 2.15) -> dict:
     """
     Solve paralinear ODE for TGO thickness x(t) and substrate recession.
 
@@ -91,8 +92,23 @@ def solve_paralinear(t_span: tuple, k_p: float, k_l: float,
     which keeps y ≥ 0 by clipping under the square root and asymptotes
     smoothly to y_ss = (k_p/(2 k_l))².
 
-    Default x0 is set adaptively to ½·x_ss so the trajectory starts inside
-    the basin of attraction of the steady state.
+    Default x0 is set adaptively to ½·x_ss so the trajectory starts
+    inside the basin of attraction of the steady state.
+
+    UNITS NOTE: The Wagner-style substrate recession formula
+    `recession = (x − x₀ + k_l·t) / PBR` returned in the result dict
+    assumes ``k_l`` and ``k_p`` are expressed in **oxide-thickness**
+    units (so that x_ss = k_p/(2·k_l) is the oxide steady-state
+    thickness). The `tebc.constants.RS_K_L_REF` calibration to the
+    Opila/Robinson-Smialek anchor follows the *substrate-recession*
+    convention used in those papers; mixing the two would introduce
+    an implicit factor of PBR. This is flagged in KNOWN_LIMITATIONS
+    until a deliberate unit audit is done; the immediate `recession`
+    number should therefore be treated as illustrative rather than
+    quantitative.
+
+    `PBR` defaults to 2.15 (SiO₂ on Si). Override for other oxide
+    systems (Al₂O₃ on Al ≈ 1.28, Cr₂O₃ on Cr ≈ 2.07, etc.).
     """
     t_eval = np.linspace(*t_span, n_points)
     x_ss   = k_p / (2.0 * k_l) if k_l > 0 else np.inf
@@ -115,8 +131,15 @@ def solve_paralinear(t_span: tuple, k_p: float, k_l: float,
             f"results may be unreliable.",
             RuntimeWarning, stacklevel=2,
         )
-    x_TGO     = np.sqrt(np.maximum(sol.y[0], 0.0))
-    recession = k_l * sol.t
+    x_TGO = np.sqrt(np.maximum(sol.y[0], 0.0))
+
+    # Wagner / paralinear substrate recession (see UNITS NOTE in the
+    # docstring). Each unit of oxide formation consumes 1/PBR units of
+    # substrate; integrating over the paralinear ODE with x0 = x(0):
+    #     Si_loss(t) = (1/PBR) · [x(t) − x0 + k_l·t]
+    # The previous code returned `recession = k_l · t`, which is the
+    # oxide mass loss to volatilization rather than substrate loss.
+    recession = (x_TGO - x0 + k_l * sol.t) / PBR
     return {"t": sol.t, "x_TGO": x_TGO, "recession": recession,
             "x_ss": x_ss, "success": bool(sol.success)}
 
@@ -127,21 +150,27 @@ def tgo_growth_stress(x_TGO: float, E_TGO: float, nu_TGO: float,
     """
     Total TGO biaxial stress = thermal + growth (PBR).
 
-    The linear (1-D) growth strain from a volumetric Pilling–Bedworth
-    ratio is
+    The biaxial film stress is *thickness-independent* in this elastic
+    treatment (Stoney-like), so `x_TGO` does not enter the formula —
+    it is kept in the signature only because callers commonly have
+    x_TGO at hand and the parameter documents that the result is the
+    stress *in* the oxide layer of thickness x_TGO. (A real model with
+    thickness-dependent plastic relaxation would use it.)
+
+    Linear (1-D) growth strain from a volumetric Pilling–Bedworth ratio:
 
         ε_growth = PBR^(1/3) − 1
 
-    which is the cube-root of the volume ratio minus one. The previous
-    implementation used the small-strain approximation (PBR − 1)/3, which
-    only holds for PBR ≈ 1; for SiO₂ on Si (PBR = 2.15) it overestimates
-    the strain by ≈ 30 % (0.383 vs 0.291).
+    The previous implementation used the small-strain approximation
+    (PBR − 1)/3, which only holds for PBR ≈ 1; for SiO₂ on Si
+    (PBR = 2.15) it overestimates the strain by ≈ 30 % (0.383 vs 0.291).
 
     Note: this is the *elastic* growth-stress estimate. Real TGOs
     accommodate most of this strain by viscoplastic flow in the bond
     coat, so measured stresses are typically 1–3 GPa rather than the
-    ~30 GPa this formula predicts. See KNOWN_LIMITATIONS.md item #4.
+    ~30 GPa this formula predicts. See KNOWN_LIMITATIONS.md item #3.
     """
+    del x_TGO  # documented above; intentionally unused.
     eps_growth = PBR ** (1.0 / 3.0) - 1.0
     biaxial_mod = E_TGO / (1 - nu_TGO)
     sigma_thermal = biaxial_mod * (alpha_TGO - alpha_sub) * dT
@@ -153,6 +182,8 @@ def integrate_tgo_temperature_schedule(
     t_total: float, schedule: list,
     k_p_at: callable, k_l_at: callable,
     x0: float | None = None, n_points: int = 500,
+    cycle_period: float | None = None,
+    PBR: float = 2.15,
 ) -> dict:
     """Integrate the paralinear ODE under a periodic temperature schedule.
 
@@ -189,14 +220,35 @@ def integrate_tgo_temperature_schedule(
         raise ValueError(
             f"Schedule fractions must sum to 1, got {fracs.sum():.6f}.",
         )
+    if (fracs < 0).any():
+        raise ValueError("Schedule fractions must be non-negative.")
     Ts = np.array([T for T, _ in schedule], dtype=float)
+    if (Ts <= 0).any():
+        raise ValueError("Schedule temperatures must be positive.")
 
     # Duty-cycle-weighted effective rates.
     k_p_eff = float(sum(f * k_p_at(T) for T, f in schedule))
     k_l_eff = float(sum(f * k_l_at(T) for T, f in schedule))
 
+    # Validity check: duty-cycle averaging is exact only when one cycle
+    # is short compared with the growth timescale τ_g ≈ x_ss / k_l_eff.
+    # If cycle_period is provided and is comparable to τ_g, warn that
+    # the "averaged-rate" approximation breaks down.
+    if cycle_period is not None and k_l_eff > 0 and k_p_eff > 0:
+        x_ss_eff = k_p_eff / (2.0 * k_l_eff)
+        tau_g = x_ss_eff / k_l_eff
+        if cycle_period > 0.1 * tau_g:
+            import warnings
+            warnings.warn(
+                f"integrate_tgo_temperature_schedule: cycle_period "
+                f"({cycle_period:.3g} s) is not ≪ growth timescale "
+                f"({tau_g:.3g} s). Duty-cycle averaging assumes a clear "
+                f"separation; consider piecewise integration instead.",
+                UserWarning, stacklevel=2,
+            )
+
     sol = solve_paralinear((0.0, t_total), k_p_eff, k_l_eff,
-                            x0=x0, n_points=n_points)
+                            x0=x0, n_points=n_points, PBR=PBR)
     sol["effective_k_p"] = k_p_eff
     sol["effective_k_l"] = k_l_eff
     sol["x_ss_at_each_T"] = np.array([

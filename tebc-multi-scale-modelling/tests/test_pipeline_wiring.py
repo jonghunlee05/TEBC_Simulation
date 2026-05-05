@@ -10,6 +10,7 @@ from tebc.orchestrator import TEBCConfig, run_pipeline
 
 @pytest.fixture(scope="module")
 def base_result():
+    import warnings
     cfg = TEBCConfig(
         run_scale1=False,
         run_scale2=True,
@@ -17,7 +18,12 @@ def base_result():
         run_scale4=True,
         run_sensitivity=False,
     )
-    return run_pipeline(cfg)
+    # Suppress the v_gas-out-of-domain warning that fires on every
+    # default-config call; it's about the calibration window, not what
+    # this fixture is testing.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=UserWarning)
+        return run_pipeline(cfg)
 
 
 def test_layer_resolved_porosity_yields_distinct_E_eff(base_result):

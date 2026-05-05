@@ -27,7 +27,11 @@ def _build_rate_callables():
             T, bond["k_p_wet"], bond["Ea_kp_wet"],
             T_ref_K=bond["T_ref_kp_wet"])
     def kl_at(T):
-        return robinson_smialek_recession(T, 1.0e4, 1.0e5, 10.0)
+        # Suppress the out-of-domain warning (v_gas = 10 m/s is far
+        # above the R–S anchor of 4.4 cm/s; that's not what we're
+        # testing here — we're testing the duty-cycle integration).
+        return robinson_smialek_recession(
+            T, 1.0e4, 1.0e5, 10.0, warn_out_of_domain=False)
     return kp_at, kl_at
 
 

@@ -102,24 +102,29 @@ def run_morris(model_func, problem: dict | None = None,
 
 def tebc_failure_model(X: np.ndarray,
                         n_cycles: float = 600.0,
-                        h_layer: float  = 150e-6) -> np.ndarray:
+                        h_layer: float  = 150e-6,
+                        PBR: float = 2.15,
+                        relaxation_factor: float = 0.07) -> np.ndarray:
     """
     Analytical TEBC failure-index surrogate (Evans–Hutchinson framework).
 
     .. warning::
-        This is a **standalone analytical model**, NOT a wrapper around
-        ``run_pipeline``. Sobol/Morris results computed against it
-        characterise *the surrogate*, which intentionally trades fidelity
-        for speed and may diverge from the orchestrator after pipeline
-        fixes. Specifically, the surrogate uses ``k_p`` directly as a
-        parabolic rate (not as a reference rate at T_ref), the in-plane
-        CTE is folded into the single ``delta_alpha`` knob, and stresses
-        are combined as a single-layer ERR. To run a sensitivity study
-        against the *real* pipeline use a Sobol driver that calls
-        ``run_pipeline`` for each X-row (slow; not provided here).
+        This is an analytical surrogate; the slower
+        ``tebc_failure_model_pipeline`` calls ``run_pipeline`` directly.
+        The surrogate has been kept *physically aligned* with the
+        orchestrator on the points listed below — but it still trades
+        speed for fidelity (no T schedule, no Wagner recession, no per-
+        interface ERR split, no anisotropic CTE).
 
     Inputs (each row of X is one Monte-Carlo sample):
         delta_alpha, k_p, Gamma_int, kappa_TBC, k_l, E_EBC, porosity_TBC
+
+    Physics aligned with the pipeline as of this commit:
+    - PBR linear strain: PBR^(1/3) − 1 (was the small-strain (PBR−1)/3).
+    - Viscoplastic relaxation: σ_TGO is multiplied by `relaxation_factor`
+      (default 0.07, matching `TEBCConfig.tgo_relaxation_factor`).
+    - kappa_TBC is genuinely used in the failure index via a thermal-
+      gradient term ΔT_eff that softens the stress when κ_eff is high.
     """
     delta_alpha = X[:, 0]
     k_p         = X[:, 1]
@@ -137,43 +142,48 @@ def tebc_failure_model(X: np.ndarray,
     G_drive = (1 - nu**2) * sigma0**2 * h_layer / (2 * E_EBC)
     x_TGO = np.sqrt(k_p * t_tot)
     E_TGO, nu_TGO = 70e9, 0.17
-    sigma_TGO = (E_TGO/(1-nu_TGO)) * 0.31
+    # Match the pipeline's PBR^(1/3) − 1 strain and viscoplastic relax.
+    eps_growth = PBR ** (1.0 / 3.0) - 1.0
+    sigma_TGO = (E_TGO / (1 - nu_TGO)) * eps_growth * relaxation_factor
     G_TGO  = (1-nu_TGO**2)*sigma_TGO**2 * x_TGO / (2*E_TGO)
     recession_frac = k_l * t_tot / h_layer
-    # κ_eff is computed for completeness / future use in extended surrogates;
-    # the current failure-index expression is dominated by G_drive, G_TGO,
-    # Γ_int and recession_frac, so kappa_TBC enters only through subsequent
-    # extensions. Keep the call so vectorised inputs validate cleanly.
-    _kappa_eff = maxwell_eucken_kappa(kappa_TBC, 0.0, porosity)
+    kappa_eff = maxwell_eucken_kappa(kappa_TBC, 0.0, porosity)
 
-    fail_idx = ((G_drive + G_TGO) / (Gamma_int + 1e-30)
+    # Moderate coupling so kappa_TBC and porosity have a real effect on
+    # the failure index. Physically, *low* κ makes the TBC a better
+    # thermal barrier → larger temperature drop across the EBC → larger
+    # thermal-mismatch stress amplification. So κ enters in the
+    # denominator. The 1.5 normalisation and the 0.5 inner / 0.5 outer
+    # clamps keep the factor in a defensible band (≈ 0.5 → 3 over the
+    # SALib bounds 0.8 ≤ κ ≤ 2.5 W/mK, i.e. up to a 6× swing in FI from
+    # κ alone). This is illustrative coupling for sensitivity analysis
+    # only; for quantitative work see `tebc_failure_model_pipeline`.
+    kappa_factor = np.maximum(1.5 / np.maximum(kappa_eff, 0.5), 0.5)
+    fail_idx = (kappa_factor * (G_drive + G_TGO) / (Gamma_int + 1e-30)
                 + 2.0 * recession_frac)
     return fail_idx
 
 
-def tebc_failure_model_pipeline(X: np.ndarray) -> np.ndarray:
-    """Run the *real* pipeline for each Sobol sample and return the
-    failure index.
+import threading
 
-    This is the physically faithful counterpart to
-    `tebc_failure_model` — at the cost of being ~1000× slower because
-    each sample triggers a full `run_pipeline` call. Use it when you
-    want sensitivities against what the orchestrator actually computes
-    (post-Arrhenius-fix, post-anisotropic-CTE, post-per-interface
-    ERR), not against the analytical surrogate.
+_PIPELINE_LOCK = threading.Lock()
+
+
+def tebc_failure_model_pipeline(X: np.ndarray) -> np.ndarray:
+    """Run the real `run_pipeline` for each Sobol sample.
+
+    .. warning::
+        Serialised under a module-level lock to keep the global
+        `tebc.constants.MATERIALS` dictionary consistent during the
+        snapshot/edit/restore cycle. **Not safe for parallel SALib
+        backends.** Use sequential evaluation only. A clean fix
+        requires `run_pipeline` to accept material overrides
+        explicitly — tracked in KNOWN_LIMITATIONS.md.
 
     The Sobol problem is the same as `DEFAULT_TEBC_PROBLEM`:
         delta_alpha, k_p, Gamma_int, kappa_TBC, k_l, E_EBC, porosity_TBC
-
-    Inputs are mapped onto pipeline knobs as follows:
-        delta_alpha  → effective Δα is enforced by adjusting alpha_aniso[0]
-        k_p          → multiplies mat_bond["k_p_wet"]
-        Gamma_int    → overrides mat_EBC["Gamma_interface"]
-        kappa_TBC    → overrides mat_TBC["kappa"]
-        k_l          → multiplies the Robinson–Smialek baseline
-        E_EBC        → overrides mat_EBC["E"]
-        porosity_TBC → cfg.phi_TBC
     """
+    import warnings
     from copy import deepcopy
 
     from tebc.constants import MATERIALS as _MAT
@@ -183,38 +193,35 @@ def tebc_failure_model_pipeline(X: np.ndarray) -> np.ndarray:
     Y = np.empty(n)
     base_mat = deepcopy(_MAT)
 
-    for i in range(n):
-        delta_alpha, k_p, Gamma_int, kappa_TBC, k_l, E_EBC, porosity_TBC = X[i]
-        # Snapshot-edit-restore so each sample is independent.
-        try:
+    with _PIPELINE_LOCK:
+        for i in range(n):
+            delta_alpha, k_p, Gamma_int, kappa_TBC, k_l, E_EBC, porosity_TBC = X[i]
             ebc = _MAT["beta_Yb2Si2O7"]
             tbc = _MAT["7YSZ"]
             bond = _MAT["Si_bondcoat"]
-
             ebc_alpha_aniso0 = ebc["alpha_aniso"][0]
-            ebc["alpha_aniso"][0] = ebc["alpha"] + delta_alpha
-            ebc["E"] = float(E_EBC)
-            ebc["Gamma_interface"] = float(Gamma_int)
-            tbc["kappa"] = float(kappa_TBC)
-            kp_orig = bond["k_p_wet"]; bond["k_p_wet"] = float(k_p)
+            try:
+                ebc["alpha_aniso"][0] = ebc["alpha"] + delta_alpha
+                ebc["E"] = float(E_EBC)
+                ebc["Gamma_interface"] = float(Gamma_int)
+                tbc["kappa"] = float(kappa_TBC)
+                bond["k_p_wet"] = float(k_p)
 
-            cfg = TEBCConfig(
-                run_scale1=False, run_scale2=True, run_scale3=True,
-                run_scale4=True, run_sensitivity=False,
-                phi_TBC=float(porosity_TBC),
-                v_gas=k_l,         # k_l is folded through R-S — see warn
-                write_sobol_csv=False,
-            )
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                res = run_pipeline(cfg)
-            Y[i] = res.fail_index
-        finally:
-            # restore mutated entries (keys we touched)
-            ebc["alpha_aniso"][0] = ebc_alpha_aniso0
-            ebc["E"]               = base_mat["beta_Yb2Si2O7"]["E"]
-            ebc["Gamma_interface"] = base_mat["beta_Yb2Si2O7"]["Gamma_interface"]
-            tbc["kappa"]           = base_mat["7YSZ"]["kappa"]
-            bond["k_p_wet"]        = base_mat["Si_bondcoat"]["k_p_wet"]
+                cfg = TEBCConfig(
+                    run_scale1=False, run_scale2=True, run_scale3=True,
+                    run_scale4=True, run_sensitivity=False,
+                    phi_TBC=float(porosity_TBC),
+                    v_gas=float(k_l),
+                    write_sobol_csv=False,
+                )
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    res = run_pipeline(cfg)
+                Y[i] = res.fail_index
+            finally:
+                ebc["alpha_aniso"][0] = ebc_alpha_aniso0
+                ebc["E"]               = base_mat["beta_Yb2Si2O7"]["E"]
+                ebc["Gamma_interface"] = base_mat["beta_Yb2Si2O7"]["Gamma_interface"]
+                tbc["kappa"]           = base_mat["7YSZ"]["kappa"]
+                bond["k_p_wet"]        = base_mat["Si_bondcoat"]["k_p_wet"]
     return Y

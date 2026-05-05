@@ -45,6 +45,7 @@
     "cp_Jkg1K1":      505,
     "KIC_Pa_m05":     2.0e6,
     "D0_O_m2s":       1.3e-6,
+    "D0_O_APS_m2s":   4.0e-5,
     "Ea_DO_eV":       0.95,
     "sources": ["Brossmann PCCP 2003", "Schlichting JMS 2001", "Clarke SCT 2003"]
   },
@@ -74,12 +75,15 @@
   },
   "SiO2_TGO": {
     "rho_kg_m3":      2200,
-    "E_Pa":           70e9,
+    "_comment_E":     "100 GPa = partially-crystalline (cristobalite) TGO scale; pure amorphous SiO2 is 70 GPa.",
+    "E_Pa":           100e9,
     "nu":             0.17,
     "alpha_K":        0.55e-6,
     "kappa_Wm1K1":    1.4,
     "cp_Jkg1K1":      740,
     "PBR":            2.15,
+    "Gamma_TGO_bondcoat_Jm2": 8.0,
+    "Gamma_TGO_EBC_Jm2":      15.0,
     "sources": ["Pilling & Bedworth JIM 1923", "Doremus JAP 1995", "Eldridge JECS 2002"]
   }
 }

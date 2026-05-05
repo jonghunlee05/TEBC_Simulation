@@ -83,8 +83,16 @@ MATERIALS = {
         "KIC":   2.0e6,
         "Gamma_interface": 25.0,
         "T_melt": 2983.0,
-        "D0_O":  1.3e-6,
-        "Ea_DO": 0.95 * eV,
+        # D0_O / Ea_DO: bulk lattice diffusion (Brossmann PCCP 2003).
+        # APS-deposited 7YSZ has columnar microstructure where grain-
+        # boundary diffusion dominates — typically 30–100× faster than
+        # bulk at our service T. Effective diffusivity for an APS
+        # microstructure should be approximated as D_eff ≈ f_GB·D_GB +
+        # (1−f_GB)·D_bulk; we expose `D0_O_APS` as a coarse "GB-enhanced
+        # apparent" prefactor (30× the bulk D₀ at the same Ea).
+        "D0_O":     1.3e-6,
+        "D0_O_APS": 4.0e-5,        # ≈ 30× bulk D0; calibration knob
+        "Ea_DO":    0.95 * eV,
     },
     "Si_bondcoat": {
         "rho":   2329.0,
@@ -112,16 +120,36 @@ MATERIALS = {
     },
     "SiO2_TGO": {
         "rho":   2200.0,
-        "E":     70e9,
+        # Thermally-grown SiO2 in TBC environments is often partially
+        # crystalline (cristobalite) at the bond-coat interface; pure
+        # amorphous SiO2 is 70 GPa, partially-crystalline TGO scales
+        # measure 90–110 GPa in nano-indentation. We default to 100 GPa
+        # to reflect the latter; override per system if known to be
+        # amorphous (e.g. very thin or low-T TGO).
+        "E":     100e9,
         "nu":    0.17,
         "alpha": 0.55e-6,
         "kappa": 1.4,
         "cp":    740.0,
         "PBR":   2.15,
         # TGO/bond-coat interface toughness, used to evaluate the
-        # delamination drive at the SiO2/Si interface separately from the
-        # EBC channeling-crack drive. Order-of-magnitude estimate; needs
-        # calibration against pull-test data.
-        "Gamma_interface": 10.0,    # J/m²
+        # delamination drive at the SiO2/Si interface separately from
+        # the EBC channeling-crack drive.
+        #
+        # CALIBRATION KNOBS — not measured per-system values.
+        # The TGO is a thin oxide *sandwiched* between the Si bond coat
+        # below and the (β-RE silicate) EBC above. The two interfaces
+        # generally have different toughnesses; the lower one is often
+        # (but not always) the SiO2/Si interface and is the typical
+        # delamination site. Mode-I fracture energies span 5–30 J/m²
+        # in TBC literature; defaults sit in that band. Replace per
+        # system and per testing geometry before publishing.
+        # The classic mechanics reference is Hutchinson & Suo, Adv.
+        # Appl. Mech. 29, 63 (1992).
+        "Gamma_TGO_bondcoat": 8.0,   # J/m²: SiO2/Si lower interface
+        "Gamma_TGO_EBC":      15.0,  # J/m²: SiO2/silicate upper interface
+        # Backward-compatible alias = min(both), used when callers want
+        # a single conservative number (worst-case interface).
+        "Gamma_interface":    8.0,   # = min(8, 15)
     },
 }

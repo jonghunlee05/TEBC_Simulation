@@ -146,18 +146,21 @@ class TestSensitivity:
 
     def test_delta_alpha_dominates(self):
         """
-        In the analytic surrogate
-            FI = (G_drive + G_TGO)/Γ_int + 2·k_l·t/h,
-        the variance ranking is set by parameter range × surrogate exponent:
-          - k_l, k_p:  3-decade log-uniform → dominate variance
-          - Γ_int:     1.2-decade linear in denominator → strong
-          - Δα:        ~0.6-decade linear, enters squared → secondary
-        So the leading drivers physically must be drawn from
-        {k_l, k_p, Γ_int, Δα}.  Assert the top-3 sit inside that set.
+        In the analytic surrogate (post round-4 alignment with the
+        pipeline) the variance ranking is set by parameter range ×
+        surrogate exponent:
+          - k_l, k_p:    3-decade log-uniform → dominate variance
+          - Γ_int:       1.2-decade linear in denominator → strong
+          - Δα:          ~0.6-decade linear, enters squared
+          - kappa_TBC, porosity_TBC: linear via the new κ-coupling
+            (kappa_factor multiplies G_drive+G_TGO)
+
+        Assert the top-3 sit inside the union of these driver sets.
         """
         from tebc.sensitivity.sobol_morris import run_sobol, tebc_failure_model
         df = run_sobol(tebc_failure_model, N=512)
         top3 = set(df.iloc[:3]["parameter"].tolist())
-        admissible = {"k_l", "k_p", "Gamma_int", "delta_alpha"}
+        admissible = {"k_l", "k_p", "Gamma_int", "delta_alpha",
+                       "kappa_TBC", "porosity_TBC"}
         assert top3.issubset(admissible), (
             f"Top-3 params must lie in {admissible}, got {top3}")

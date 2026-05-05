@@ -13,8 +13,44 @@ from __future__ import annotations
 def bilayer_mismatch_stress(E_f: float, nu_f: float,
                              alpha_f: float, alpha_s: float,
                              dT: float) -> float:
-    """Biaxial CTE mismatch stress: σ_f = E_f/(1-ν_f)(α_s-α_f)ΔT."""
+    """Stoney-limit biaxial CTE mismatch stress.
+
+        σ_f = E_f' · (α_s − α_f) · ΔT,    E_f' = E_f / (1 − ν_f)
+
+    Valid only when h_film/h_substrate ≪ 1 (≤ 0.1 in practice). For
+    finite thickness ratios use `bilayer_mismatch_stress_hsueh`, which
+    reduces to this Stoney form in the thin-film limit.
+    """
     return (E_f / (1.0 - nu_f)) * (alpha_s - alpha_f) * dT
+
+
+def bilayer_mismatch_stress_hsueh(E_f: float, nu_f: float, h_f: float,
+                                   E_s: float, nu_s: float, h_s: float,
+                                   alpha_f: float, alpha_s: float,
+                                   dT: float) -> float:
+    """General bilayer biaxial film-stress (uniform-strain bound).
+
+    Returns σ_f only. The companion substrate stress is recoverable
+    from force balance σ_s · h_s = −σ_f · h_f. Hsueh's full treatment
+    (JAP 91 9652, 2002) also includes a *bending* term for free-standing
+    plates that is omitted here — appropriate when the system is
+    constrained against curvature (typical for coatings on thick
+    components) but adds error of order (h_f/h_s)² for a free plate.
+
+    Force balance + shared in-plane strain give:
+
+        ε_common = (E_f' h_f α_f + E_s' h_s α_s) / (E_f' h_f + E_s' h_s) · ΔT
+        σ_f      = E_f' · (ε_common − α_f · ΔT)
+                 = E_f' · E_s' · h_s · (α_s − α_f) · ΔT
+                   / (E_f' h_f + E_s' h_s)
+
+    Limits:
+      h_f/h_s → 0:  σ_f → E_f' (α_s − α_f) ΔT  (Stoney)
+      h_f/h_s → ∞:  σ_f → 0
+    """
+    Ef_p = E_f / (1.0 - nu_f)
+    Es_p = E_s / (1.0 - nu_s)
+    return Ef_p * Es_p * h_s * (alpha_s - alpha_f) * dT / (Ef_p * h_f + Es_p * h_s)
 
 
 def stoney_curvature(sigma_f: float, h_f: float,

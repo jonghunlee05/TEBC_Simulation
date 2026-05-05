@@ -46,3 +46,30 @@ jobs:
           cache: pip
       - run: pip install ruff
       - run: ruff check tebc tests
+
+  heavy-test:
+    # Optional job that installs the conda-forge scientific stack so the
+    # Scale 1 (pymatgen), Scale 3 (fipy, pycalphad), and DP-GEN code paths
+    # actually get exercised. Marked continue-on-error because the conda
+    # solve is fragile — the lightweight `test` job remains authoritative.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: tebc-heavy
+          python-version: "3.11"
+      - name: Install heavy stack
+        run: |
+          conda install -y -c conda-forge \
+            numpy scipy pandas salib pytest pytest-cov \
+            pymatgen phonopy fipy pycalphad ase
+      - name: Install package
+        run: pip install -e . --no-deps
+      - name: Run tests
+        run: pytest -ra

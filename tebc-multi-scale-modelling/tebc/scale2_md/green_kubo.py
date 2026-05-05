@@ -13,8 +13,26 @@ from tebc.constants import k_B
 
 
 def compute_hcacf(J: np.ndarray, dt: float,
-                   max_lag_steps: int = None):
-    """Compute heat current autocorrelation function via FFT."""
+                   max_lag_steps: int | None = None,
+                   unbiased: bool = False):
+    """Compute heat current autocorrelation function.
+
+    Parameters
+    ----------
+    J : (n_steps, 3) or (n_steps,) array
+        Heat current in W/m² (or any consistent units).
+    dt : float
+        Timestep [s].
+    max_lag_steps : int | None
+        Truncate the returned ACF at this lag.
+    unbiased : bool
+        If False (default), normalise by `n` — the *biased* estimator,
+        standard in Green-Kubo because it suppresses noise at long lags.
+        If True, normalise by `n − lag` for an *unbiased* estimator;
+        gives correct C(τ) magnitude for short trajectories but amplifies
+        noise at large τ. The integration window passed to
+        `integrate_hcacf` should match the noise budget of either choice.
+    """
     if J.ndim == 2:
         HCACF = sum(
             np.correlate(J[:,i], J[:,i], mode='full') for i in range(3)
@@ -24,7 +42,13 @@ def compute_hcacf(J: np.ndarray, dt: float,
 
     n = len(J)
     mid = len(HCACF) // 2
-    HCACF = HCACF[mid:] / n
+    HCACF = HCACF[mid:]
+    if unbiased:
+        # Divide each lag by (n - lag); avoid division by zero at lag=n.
+        denom = np.arange(n, 0, -1, dtype=float)
+        HCACF = HCACF / denom
+    else:
+        HCACF = HCACF / n
 
     if max_lag_steps is not None:
         HCACF = HCACF[:max_lag_steps]
