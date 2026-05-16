@@ -1,1 +1,6 @@
+# Phase-diagram pickle cache (re-fetched from the Materials Project API)
 .pd_cache/
+
+# Generated analysis outputs (regenerate with: python cmas_reactivity.py)
+cmas_product_map.csv
+cmas_top_candidates.csv
